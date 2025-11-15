@@ -2,7 +2,8 @@ import re
 import os
 import json
 from pathlib import Path
-
+import tkinter
+from tkinter import filedialog
 from docx import Document
 import pdfplumber
 import chardet
@@ -11,24 +12,40 @@ import chardet
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 
 def is_scene_header(line: str) -> bool:
-    """Определяет, является ли строка заголовком сцены в формате «Васильков»."""
+    """Определяет, является ли строка заголовком сцены."""
     line = line.strip()
     if not line:
         return False
 
-    # Приводим к единому виду: убираем лишние пробелы, нормализуем тире и точки
-    line = re.sub(r'[–—]', '-', line)  # заменяем длинные тире на короткое
-    line = re.sub(r'\s+', ' ', line)   # сжимаем множественные пробелы
-
-    # Паттерн для сцен вида: "1-1. ИНТ. ...", "2-5. НАТ. ...", "4-12. 70-е инт. ..."
-    pattern = r'^\d+-\d+\.\s*(ИНТ\.|НАТ\.|ИНТЕРЬЕР|ЭКСТЕРЬЕР|INT\.|EXT\.)'
-    if re.match(pattern, line, re.IGNORECASE):
+    # Приводим к единому виду
+    line = re.sub(r'[–—]', '-', line)
+    line = re.sub(r'\s+', ' ', line)
+    
+    print(f"Проверка строки: '{line}'")  # Отладочный вывод
+    
+    # Паттерн 1: "1. ИНТ. квартира кати. комната алёны. утро" (ваш формат)
+    pattern1 = r'^\d+\.\s+(ИНТ\.|НАТ\.|ИНТЕРЬЕР|ЭКСТЕРЬЕР|INT\.|EXT\.)'
+    if re.match(pattern1, line, re.IGNORECASE):
+        print(f"  -> Совпадение с pattern1")
         return True
-
-    # Дополнительно: если строка начинается с номера вида "1.", "2.", даже без "ИНТ"
+    
+    # Паттерн 2: "1-1. ИНТ. КВАРТИРА - ДЕНЬ" (классический)
+    pattern2 = r'^\d+-\d+\.\s+(ИНТ\.|НАТ\.|ИНТЕРЬЕР|ЭКСТЕРЬЕР|INT\.|EXT\.)'
+    if re.match(pattern2, line, re.IGNORECASE):
+        print(f"  -> Совпадение с pattern2") 
+        return True
+    
+    # Паттерн 3: Просто номер сцены "1." (резервный)
     if re.match(r'^\d+\.\s*\S', line):
+        print(f"  -> Совпадение с pattern3")
         return True
 
+    # Паттерн 4: С заглавными буквами в начале "ИНТ.", "НАТ."
+    if re.match(r'^(ИНТ\.|НАТ\.|ИНТЕРЬЕР|ЭКСТЕРЬЕР)', line, re.IGNORECASE):
+        print(f"  -> Совпадение с pattern4")
+        return True
+
+    print(f"  -> НЕ распознан как заголовок")
     return False
 
 
@@ -36,18 +53,27 @@ def is_character_line(line: str) -> bool:
     stripped = line.strip()
     if not stripped or len(stripped) > 50:
         return False
-    if not stripped.isupper():
+    
+    # Разрешаем смешанный регистр (не только верхний)
+    if not re.match(r'^[А-ЯЁA-Z]', stripped):
         return False
-    # Разрешаем буквы, пробелы, тире, точки, цифры (для "ДЕВУШКА 1")
-    if not re.match(r'^[А-ЯЁ\s\-\.0-9]+$', stripped):
+    
+    # Разрешаем буквы, пробелы, тире, точки, цифры, скобки
+    if not re.match(r'^[А-ЯЁA-Zа-яёa-z\s\-\.0-9\(\)]+$', stripped):
         return False
+    
     words = stripped.split()
     if len(words) == 0 or len(words) > 5:
         return False
-    # Исключаем очевидные действия
-    action_keywords = {'СМЕХ', 'ПАУЗА', 'МОЛЧАНИЕ', 'ЗВУК', 'ТИТР', 'СКЛЕЙКА', 'ПЕРЕХОД'}
-    if any(kw in stripped for kw in action_keywords):
+    
+    # Исключаем очевидные действия (расширенный список)
+    action_keywords = {
+        'СМЕХ', 'ПАУЗА', 'МОЛЧАНИЕ', 'ЗВУК', 'ТИТР', 'СКЛЕЙКА', 'ПЕРЕХОД',
+        'ГРАФИКА', 'ЗАЯВОЧНЫЙ', 'ОБЩИЙ', 'КРУПНО', 'ТАЙМЛАПС', 'КОНЕЦ'
+    }
+    if any(kw in stripped.upper() for kw in action_keywords):
         return False
+    
     return True
 
 
@@ -75,8 +101,6 @@ def extract_text_from_pdf(path: str) -> list:
     return lines_with_page
 
 
-# === ОСНОВНОЙ ПАРСЕР ===
-
 def parse_script_lines(lines_with_page: list) -> dict:
     """
     Принимает список строк (для DOCX: [str]; для PDF: [(str, page)]).
@@ -89,21 +113,36 @@ def parse_script_lines(lines_with_page: list) -> dict:
     current_dialogue_lines = []
 
     # Нормализуем вход: приведём к единому формату [(line, page)]
-    if isinstance(lines_with_page[0], str):
+    if lines_with_page and isinstance(lines_with_page[0], str):
         lines_with_page = [(line, None) for line in lines_with_page]
 
-    for raw_line, page in lines_with_page:
+    print("=== ОТЛАДОЧНАЯ ИНФОРМАЦИЯ ===")
+    print(f"Всего строк в документе: {len(lines_with_page)}")
+    
+    # Анализируем первые 30 строк для понимания структуры
+    print("Первые 30 строк документа:")
+    for i, (raw_line, page) in enumerate(lines_with_page[:30]):
+        line = raw_line.strip()
+        if line:  # только непустые строки
+            is_header = is_scene_header(line)
+            print(f"{i+1:3d}: '{line[:50]}...' -> заголовок: {is_header}")
+
+    scene_count = 0
+    for i, (raw_line, page) in enumerate(lines_with_page):
         line = raw_line.strip()
         if not line:
             continue
 
         # Если началась новая сцена — сохраняем предыдущую
         if is_scene_header(line):
+            scene_count += 1
+            print(f"НАЙДЕНА СЦЕНА {scene_count}: '{line}'")
+
             # Сохраняем накопленное действие или реплику перед началом сцены
             if current_action_lines:
                 if current_scene:
                     current_scene["elements"].append({
-                        "type": "action",
+                        "type": "action", 
                         "text": " ".join(current_action_lines)
                     })
                 current_action_lines = []
@@ -123,6 +162,7 @@ def parse_script_lines(lines_with_page: list) -> dict:
             # Начинаем новую
             current_scene = {
                 "scene_id": len(scenes) + 1,
+                "header": line,
                 "page": page,
                 "elements": []
             }
@@ -146,7 +186,7 @@ def parse_script_lines(lines_with_page: list) -> dict:
             # Сохраняем предыдущую реплику (если была)
             if current_dialogue_lines and last_character:
                 current_scene["elements"].append({
-                    "type": "dialogue",
+                    "type": "dialogue", 
                     "character": last_character,
                     "text": " ".join(current_dialogue_lines)
                 })
@@ -177,6 +217,7 @@ def parse_script_lines(lines_with_page: list) -> dict:
             })
         scenes.append(current_scene)
 
+    print(f"=== РЕЗУЛЬТАТ: обработано {len(scenes)} сцен ===")
     return {"scenes": scenes}
 
 
@@ -201,31 +242,33 @@ def parse_script(file_path: str) -> dict:
 # === ПРИМЕР ИСПОЛЬЗОВАНИЯ ===
 
 if __name__ == "__main__":
-    import tkinter
-    from tkinter import filedialog
-
-    # Скрываем основное окно tkinter
-    root = tkinter.Tk()
-    root.withdraw()
-    root.attributes('-topmost', True)  # Диалог поверх других окон
-
-    # Открываем диалог выбора файла
-    input_file = filedialog.askopenfilename(
-        title="Выберите сценарий",
-        filetypes=[("Сценарий", "*.docx *.pdf")]
-    )
-
-    if not input_file:
-        print("Файл не выбран.")
-        input("Нажмите Enter для выхода...")
-        exit()
-
+    import sys
+    import argparse
+    
+    # Вариант 1: Через аргументы командной строки
+    if len(sys.argv) > 1:
+        input_file = sys.argv[1]
+    else:
+        # Вариант 2: Интерактивный ввод в консоли
+        input_file = input("Введите путь к файлу сценария (.docx или .pdf): ").strip('"').strip("'")
+    
+    if not input_file or not os.path.exists(input_file):
+        print("❌ Файл не найден или не указан")
+        sys.exit(1)
+    
     try:
         result = parse_script(input_file)
         output_file = Path(input_file).with_suffix('.json')
+        
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
+        
         print(f"✅ Успешно! Результат сохранён в:\n{output_file}")
+        
+        # Показываем статистику
+        total_scenes = len(result["scenes"])
+        print(f"📊 Обработано сцен: {total_scenes}")
+        
     except Exception as e:
         print(f"❌ Ошибка: {e}")
-        input("Нажмите Enter для выхода...")
+        sys.exit(1)

@@ -112,7 +112,7 @@ def analyze_script_from_json_file(json_path: str, output_path: str = None) -> Di
 # 🚀 ТОЧКА ВХОДА
 # -------------------------
 if __name__ == "__main__":
-    INPUT_FOLDER = "Example"
+    INPUT_FOLDER = "example"
     OUTPUT_SUFFIX = "_natasha"
 
     if not os.path.isdir(INPUT_FOLDER):

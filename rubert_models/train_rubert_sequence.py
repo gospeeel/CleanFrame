@@ -33,7 +33,7 @@ from datasets import Dataset
 # CONFIG / Defaults
 # ---------------------------
 DEFAULT_MODEL_NAME = "DeepPavlov/rubert-base-cased"
-DEFAULT_DATA_DIR = "rubert_models/dataset"
+DEFAULT_DATA_DIR = "dataset/"
 DEFAULT_OUTPUT_DIR = "models/rubert"
 NUM_LABELS = 5  # 0..4
 SEED = 42
@@ -189,7 +189,7 @@ def train_category(
 
     training_args = TrainingArguments(
         output_dir=out_cat_dir,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         save_strategy="epoch",
         learning_rate=learning_rate,
         per_device_train_batch_size=batch_size,
@@ -203,9 +203,8 @@ def train_category(
         save_total_limit=save_total_limit,
         logging_steps=logging_steps,
         fp16=fp16,
-        save_strategy_metric="f1",  # not used by HF but kept for readability
         gradient_accumulation_steps=1,
-        gradient_clipping=1.0,
+        max_grad_norm=1.0,  
     )
 
     # Trainer

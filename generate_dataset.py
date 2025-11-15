@@ -202,7 +202,7 @@ def create_obscene_dataset():
     dataset = []
 
     for level, phrases in [(0, level_0), (1, level_1), (2, level_2), (3, level_3), (4, level_4)]:
-        for _ in range(200):
+        for _ in range(100):
             base = random.choice(phrases)
             variations = [
                 f"Сцена: {base}",
@@ -417,7 +417,7 @@ def create_violence_dataset():
         (3, level_3),
         (4, level_4)
     ]:
-        for _ in range(200):
+        for _ in range(150):
             base = random.choice(phrases)
             variations = [
                 f"Сцена: {base}",
@@ -679,7 +679,7 @@ def create_sexual_content_dataset():
         (3, level_3),
         (4, level_4)
     ]:
-        for _ in range(200):
+        for _ in range(150):
             base = random.choice(phrases)
             variations = [
                 f"Сцена: {base}",
@@ -896,7 +896,7 @@ def create_drugs_alcohol_dataset():
     # -----------------------------------
     dataset = []
     for level, phrases in [(0, level_0), (1, level_1), (2, level_2), (3, level_3), (4, level_4)]:
-        for _ in range(200):
+        for _ in range(150):
             base = random.choice(phrases)
             wrapped = random.choice([
                 f"Сцена: {base}",
@@ -1114,7 +1114,7 @@ def create_fear_dataset():
     # -----------------------------------
     dataset = []
     for level, phrases in [(0, level_0), (1, level_1), (2, level_2), (3, level_3), (4, level_4)]:
-        for _ in range(200):
+        for _ in range(150):
             base = random.choice(phrases)
             wrapped = random.choice([
                 f"Сцена: {base}",
