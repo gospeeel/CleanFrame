@@ -90,6 +90,7 @@ export interface AnalysisResult {
   сцены_с_максимальным_рейтингом?: SuspiciousScene[]
   все_подозрительные_сцены?: SuspiciousScene[]
   статистика?: RatingStats
+  metadata?: Record<string, unknown>
 }
 
 export interface AnalysisResponse {

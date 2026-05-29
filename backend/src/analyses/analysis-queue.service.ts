@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import * as Sentry from '@sentry/nestjs'
 import { Queue, Worker, Job, UnrecoverableError, type ConnectionOptions } from 'bullmq'
 import IORedis from 'ioredis'
+import { breadcrumbQueueMetric, countQueueMetric, gaugeQueueMetric } from '../observability/queue-metrics'
 import { AnalysisProcessorService } from './analysis-processor.service'
 
 interface AnalysisJobData {
@@ -19,6 +20,7 @@ export class AnalysisQueueService implements OnModuleInit, OnApplicationShutdown
   private connectionOptions: ConnectionOptions | null = null
   private readonly queueName = 'analysis'
   private readonly workerId = `${process.pid}-${Date.now()}`
+  private workerConcurrency = 1
 
   constructor(
     private readonly configService: ConfigService,
@@ -36,10 +38,16 @@ export class AnalysisQueueService implements OnModuleInit, OnApplicationShutdown
 
     const concurrency = Number(this.configService.get<string>('ANALYSIS_QUEUE_CONCURRENCY') ?? '1')
     const attempts = Number(this.configService.get<string>('ANALYSIS_QUEUE_ATTEMPTS') ?? '2')
+    this.workerConcurrency = Number.isFinite(concurrency) && concurrency > 0 ? concurrency : 1
 
     this.worker = new Worker<AnalysisJobData>(
       this.queueName,
       async (job) => {
+        countQueueMetric('queue.started', 1, {
+          queue: this.queueName,
+          workerId: this.workerId
+        })
+        await this.recordWorkerUtilization('processing_start')
         Sentry.addBreadcrumb({
           category: 'analysis.queue',
           message: 'analysis processing',
@@ -61,7 +69,7 @@ export class AnalysisQueueService implements OnModuleInit, OnApplicationShutdown
               queueJobId: job.id,
               workerId: this.workerId,
               requestId: job.data.requestId,
-              attemptsMade: job.attemptsMade,
+              attemptsMade: job.attemptsMade + 1,
               maxAttempts: Number(job.opts.attempts ?? attempts)
             })
             throw new UnrecoverableError(error instanceof Error ? error.message : 'Unrecoverable analysis error')
@@ -104,6 +112,10 @@ export class AnalysisQueueService implements OnModuleInit, OnApplicationShutdown
             maxAttempts
           }
         })
+        countQueueMetric('queue.retry_scheduled', 1, {
+          queue: this.queueName,
+          workerId: this.workerId
+        })
         return
       }
 
@@ -114,6 +126,10 @@ export class AnalysisQueueService implements OnModuleInit, OnApplicationShutdown
         attemptsMade: job.attemptsMade,
         maxAttempts
       })
+    })
+
+    this.worker.on('completed', () => {
+      void this.recordWorkerUtilization('completed')
     })
   }
 
@@ -146,6 +162,10 @@ export class AnalysisQueueService implements OnModuleInit, OnApplicationShutdown
         requestId: data.requestId
       }
     })
+    countQueueMetric('queue.enqueued', 1, {
+      queue: this.queueName
+    })
+    await this.recordWorkerUtilization('enqueued')
 
     return job.id ?? null
   }
@@ -175,9 +195,76 @@ export class AnalysisQueueService implements OnModuleInit, OnApplicationShutdown
     }
   }
 
+  async getStatus() {
+    if (!this.queue) {
+      return {
+        active: 0,
+        waiting: 0,
+        delayed: 0,
+        failed: 0,
+        completed: 0,
+        concurrency: this.workerConcurrency,
+        utilizationPercent: 0
+      }
+    }
+
+    const counts = await this.queue.getJobCounts('active', 'waiting', 'delayed', 'failed', 'completed')
+    const active = counts.active ?? 0
+    return {
+      active,
+      waiting: counts.waiting ?? 0,
+      delayed: counts.delayed ?? 0,
+      failed: counts.failed ?? 0,
+      completed: counts.completed ?? 0,
+      concurrency: this.workerConcurrency,
+      utilizationPercent: Math.min(100, (active / this.workerConcurrency) * 100)
+    }
+  }
+
   async onApplicationShutdown() {
     await this.worker?.close()
     await this.queue?.close()
+  }
+
+  private async recordWorkerUtilization(stage: string) {
+    if (!this.queue) {
+      return
+    }
+
+    try {
+      const counts = await this.queue.getJobCounts('active', 'waiting', 'delayed', 'failed')
+      const active = counts.active ?? 0
+      const waiting = (counts.waiting ?? 0) + (counts.delayed ?? 0)
+      const utilizationPercent = Math.min(100, (active / this.workerConcurrency) * 100)
+
+      gaugeQueueMetric('worker.active_jobs', active, 'none', {
+        queue: this.queueName,
+        workerId: this.workerId,
+        stage
+      })
+      gaugeQueueMetric('worker.waiting_jobs', waiting, 'none', {
+        queue: this.queueName,
+        workerId: this.workerId,
+        stage
+      })
+      gaugeQueueMetric('worker.concurrency_utilization', utilizationPercent, 'percent', {
+        queue: this.queueName,
+        workerId: this.workerId,
+        stage
+      })
+      breadcrumbQueueMetric('worker utilization sampled', {
+        queue: this.queueName,
+        workerId: this.workerId,
+        stage,
+        active,
+        waiting,
+        failed: counts.failed ?? 0,
+        concurrency: this.workerConcurrency,
+        utilizationPercent
+      })
+    } catch (error) {
+      this.logger.warn(`Failed to collect queue metrics: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   private buildConnectionOptions(redisUrl: string): ConnectionOptions {

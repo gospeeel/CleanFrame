@@ -4,7 +4,14 @@ import { NotificationsService } from '../notifications/notifications.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { AnalysisFileStorageService } from './analysis-file-storage.service'
 import { AnalysisQueueService } from './analysis-queue.service'
-import { AnalysisDetails, AnalysisJobResponse, AnalysisListItem, AnalysisRecord } from './analyses.types'
+import {
+  AdminOpsAnalysisItem,
+  AdminOpsSummary,
+  AnalysisDetails,
+  AnalysisJobResponse,
+  AnalysisListItem,
+  AnalysisRecord
+} from './analyses.types'
 
 @Injectable()
 export class AnalysesService {
@@ -102,6 +109,108 @@ export class AnalysesService {
     }
   }
 
+  async adminOpsSummary(): Promise<AdminOpsSummary> {
+    const [total, byStatus, activeItems, completedForAverages, queue] = await Promise.all([
+      this.prisma.analysis.count(),
+      this.prisma.analysis.groupBy({
+        by: ['status'],
+        _count: { _all: true }
+      }),
+      this.prisma.analysis.findMany({
+        where: {
+          status: {
+            in: [AnalysisStatus.QUEUED, AnalysisStatus.PROCESSING, AnalysisStatus.FAILED, AnalysisStatus.DEAD_LETTER]
+          }
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              login: true,
+              email: true
+            }
+          }
+        },
+        orderBy: [
+          { status: 'asc' },
+          { updatedAt: 'desc' }
+        ],
+        take: 100
+      }),
+      this.prisma.analysis.findMany({
+        where: {
+          startedAt: { not: null },
+          completedAt: { not: null }
+        },
+        select: {
+          queuedAt: true,
+          startedAt: true,
+          completedAt: true
+        },
+        orderBy: { completedAt: 'desc' },
+        take: 200
+      }),
+      this.queue.getStatus()
+    ])
+
+    const statusCounts = new Map(byStatus.map((item) => [item.status, item._count._all]))
+    const queueLatencies = completedForAverages
+      .map((item) => item.startedAt ? item.startedAt.getTime() - item.queuedAt.getTime() : null)
+      .filter((value): value is number => value !== null && value >= 0)
+    const processingTimes = completedForAverages
+      .map((item) => item.startedAt && item.completedAt ? item.completedAt.getTime() - item.startedAt.getTime() : null)
+      .filter((value): value is number => value !== null && value >= 0)
+
+    return {
+      total,
+      queued: statusCounts.get(AnalysisStatus.QUEUED) ?? 0,
+      processing: statusCounts.get(AnalysisStatus.PROCESSING) ?? 0,
+      done: statusCounts.get(AnalysisStatus.DONE) ?? 0,
+      failed: statusCounts.get(AnalysisStatus.FAILED) ?? 0,
+      deadLetter: statusCounts.get(AnalysisStatus.DEAD_LETTER) ?? 0,
+      cancelled: statusCounts.get(AnalysisStatus.CANCELLED) ?? 0,
+      averageQueueLatencyMs: this.average(queueLatencies),
+      averageProcessingTimeMs: this.average(processingTimes),
+      queue,
+      items: activeItems.map((analysis) => this.toAdminOpsItem(analysis))
+    }
+  }
+
+  async retryAsAdmin(id: string, requestId?: string): Promise<AnalysisJobResponse> {
+    const analysis = await this.prisma.analysis.findUnique({ where: { id } })
+
+    if (!analysis) {
+      throw new NotFoundException('Анализ не найден')
+    }
+
+    if (analysis.status !== AnalysisStatus.FAILED && analysis.status !== AnalysisStatus.DEAD_LETTER) {
+      throw new BadRequestException('Ручной retry доступен только для FAILED или DEAD_LETTER')
+    }
+
+    if (!analysis.sourceFilePath) {
+      throw new BadRequestException('Исходный файл уже удалён. Нужно загрузить файл заново.')
+    }
+
+    const queueJobId = await this.queue.enqueue({ analysisId: analysis.id, userId: analysis.userId, requestId })
+    const updated = await this.prisma.analysis.update({
+      where: { id: analysis.id },
+      data: {
+        status: AnalysisStatus.QUEUED,
+        queueJobId,
+        queuedAt: new Date(),
+        startedAt: null,
+        completedAt: null,
+        errorCode: null,
+        errorMessage: null
+      }
+    })
+
+    return {
+      id: updated.id,
+      status: updated.status
+    }
+  }
+
   async cancel(userId: string, id: string): Promise<AnalysisDetails> {
     const analysis = await this.getOwnedAnalysis(userId, id)
 
@@ -172,5 +281,31 @@ export class AnalysesService {
       errorCode: analysis.errorCode,
       updatedAt: analysis.updatedAt
     }
+  }
+
+  private toAdminOpsItem(
+    analysis: AnalysisRecord & { user: { id: string; login: string; email: string } }
+  ): AdminOpsAnalysisItem {
+    return {
+      ...this.toListItem(analysis),
+      userId: analysis.user.id,
+      userLogin: analysis.user.login,
+      userEmail: analysis.user.email,
+      attempts: analysis.attempts,
+      queueJobId: analysis.queueJobId,
+      workerId: analysis.workerId,
+      errorMessage: analysis.errorMessage,
+      errorCode: analysis.errorCode,
+      updatedAt: analysis.updatedAt,
+      canRetry: analysis.status === AnalysisStatus.FAILED || analysis.status === AnalysisStatus.DEAD_LETTER
+    }
+  }
+
+  private average(values: number[]) {
+    if (!values.length) {
+      return null
+    }
+
+    return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
   }
 }

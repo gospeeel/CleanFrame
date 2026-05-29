@@ -16,6 +16,8 @@ const headerRef = useTemplateRef<HTMLElement>('header')
 
 const isAuthPage = computed(() => route.path === '/login' || route.path === '/register')
 const isAuthStateReady = computed(() => isRestored.value && !isRestoring.value)
+const isAdmin = computed(() => user.value?.role === 'ADMIN' || user.value?.role === 'SUPER_ADMIN')
+const mobileNavClass = computed(() => isAdmin.value ? 'grid-cols-4' : 'grid-cols-3')
 const initials = computed(() => user.value?.login?.slice(0, 2).toUpperCase() ?? '...')
 const displayLogin = computed(() => {
   if (user.value?.login) {
@@ -88,6 +90,23 @@ onMounted(() => {
         >
           История
         </NuxtLink>
+        <NuxtLink
+          data-nav-item
+          class="rounded-[10px] px-4 py-2 text-sm font-bold text-muted transition hover:bg-steel hover:text-paper"
+          active-class="bg-steel text-paper"
+          to="/compare"
+        >
+          Сравнение
+        </NuxtLink>
+        <NuxtLink
+          v-if="isAdmin"
+          data-nav-item
+          class="rounded-[10px] px-4 py-2 text-sm font-bold text-muted transition hover:bg-steel hover:text-paper"
+          active-class="bg-steel text-paper"
+          to="/ops"
+        >
+          Ops
+        </NuxtLink>
       </nav>
 
       <div v-if="!isAuthPage" class="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -115,7 +134,8 @@ onMounted(() => {
 
     <nav
       v-if="!isAuthPage"
-      class="grid grid-cols-2 border-t border-line bg-paper/82 px-3 py-2 backdrop-blur-xl md:hidden"
+      class="grid border-t border-line bg-paper/82 px-3 py-2 backdrop-blur-xl md:hidden"
+      :class="mobileNavClass"
     >
       <NuxtLink
         class="rounded-[10px] px-3 py-2 text-center text-xs font-black uppercase tracking-[0.12em] text-muted"
@@ -130,6 +150,21 @@ onMounted(() => {
         to="/history"
       >
         История
+      </NuxtLink>
+      <NuxtLink
+        class="rounded-[10px] px-3 py-2 text-center text-xs font-black uppercase tracking-[0.12em] text-muted"
+        active-class="bg-steel text-paper"
+        to="/compare"
+      >
+        Сравнение
+      </NuxtLink>
+      <NuxtLink
+        v-if="isAdmin"
+        class="rounded-[10px] px-3 py-2 text-center text-xs font-black uppercase tracking-[0.12em] text-muted"
+        active-class="bg-steel text-paper"
+        to="/ops"
+      >
+        Ops
       </NuxtLink>
     </nav>
   </header>

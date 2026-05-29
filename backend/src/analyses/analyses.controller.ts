@@ -10,8 +10,11 @@ import {
   UseInterceptors
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
+import { UserRole } from '@prisma/client'
 import { Request } from 'express'
 import { memoryStorage } from 'multer'
+import { Roles } from '../auth/roles.decorator'
+import { RolesGuard } from '../auth/roles.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { JwtUser } from '../auth/auth.types'
@@ -41,6 +44,20 @@ export class AnalysesController {
   @Get()
   list(@CurrentUser() user: JwtUser) {
     return this.analysesService.list(user.sub)
+  }
+
+  @Get('admin/ops')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  adminOps() {
+    return this.analysesService.adminOpsSummary()
+  }
+
+  @Post('admin/ops/:id/retry')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  adminRetry(@Param('id') id: string, @Req() request: Request) {
+    return this.analysesService.retryAsAdmin(id, this.requestId(request))
   }
 
   @Get(':id')

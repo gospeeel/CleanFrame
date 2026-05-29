@@ -275,8 +275,6 @@
 - [ ] Frontend notification realtime:
   - [x] SSE stream добавлен через `GET /api/notifications/stream`;
   - [x] polling оставлен как fallback;
-  - [ ] browser push как opt-in настройка;
-  - [ ] email/Brevo отложены до VPS и доменного имени.
 - [x] Timeline metadata нормализуется на уровне backend:
   - [x] валидируются/нормализуются `scene_id`, `scene_header`, `page`, `element_index`, `timeline_position`;
   - [x] добавлен fallback timeline position при неполных данных.
@@ -317,12 +315,12 @@
   - [ ] измерить CLS;
   - [ ] измерить INP;
   - [ ] проверить слабые устройства/reduced motion/hidden tab.
-- [ ] Queue metrics:
-  - [ ] queue latency;
-  - [ ] processing time;
-  - [ ] attempts count;
-  - [ ] dead-letter count;
-  - [ ] worker concurrency utilization.
+- [x] Queue metrics через GlitchTip/Sentry:
+  - [x] queue latency;
+  - [x] processing time;
+  - [x] attempts count;
+  - [x] dead-letter count;
+  - [x] worker concurrency utilization.
 
 ### Что Нужно Доделать В Первую Очередь
 
@@ -341,7 +339,7 @@
 - [ ] Browser push notifications как пользовательская настройка.
 - [ ] Email/Brevo notifications после появления VPS и доменного имени.
 - [ ] S3/R2 private object storage для upload-файлов.
-- [ ] Admin/ops экран для queue status, failed/dead-letter jobs и ручного retry.
+- [x] Admin/ops экран для queue status, failed/dead-letter jobs и ручного retry.
 - [ ] Privacy mode для скрытия raw file names в UI/logs/Sentry.
-- [ ] Report export в PDF/HTML.
-- [ ] Отдельная страница сравнения нескольких анализов одного сценария.
+- [x] Report export в PDF через стилизованную browser print-view. HTML export не делаем.
+- [x] Отдельная страница сравнения нескольких анализов одного сценария.

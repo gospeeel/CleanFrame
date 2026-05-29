@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/nestjs'
 import { AnalysisStatus, NotificationType, Prisma } from '@prisma/client'
 import { LlmService } from '../llm/llm.service'
 import { NotificationsService } from '../notifications/notifications.service'
+import { countQueueMetric, distributionQueueMetric } from '../observability/queue-metrics'
 import { PrismaService } from '../prisma/prisma.service'
 import { AnalysisFileStorageService } from './analysis-file-storage.service'
 
@@ -22,6 +23,17 @@ export class AnalysisProcessorService {
     if (!analysis || analysis.status === AnalysisStatus.CANCELLED) {
       return
     }
+    const processingStartedAt = new Date()
+    const queueLatencyMs = Math.max(0, processingStartedAt.getTime() - analysis.queuedAt.getTime())
+
+    distributionQueueMetric('queue.latency', queueLatencyMs, 'millisecond', {
+      status: AnalysisStatus.PROCESSING,
+      workerId
+    })
+    distributionQueueMetric('queue.attempts', analysis.attempts + 1, 'none', {
+      status: AnalysisStatus.PROCESSING,
+      workerId
+    })
 
     Sentry.setTags({
       analysisId,
@@ -41,7 +53,7 @@ export class AnalysisProcessorService {
       where: { id: analysisId },
       data: {
         status: AnalysisStatus.PROCESSING,
-        startedAt: analysis.startedAt ?? new Date(),
+        startedAt: analysis.startedAt ?? processingStartedAt,
         attempts: { increment: 1 },
         workerId,
         errorMessage: null,
@@ -59,6 +71,7 @@ export class AnalysisProcessorService {
       })
       const result = this.normalizeAnalysisResult(response?.result as Prisma.JsonValue)
       const stats = this.extractStats(result)
+      const processingDurationMs = Date.now() - processingStartedAt.getTime()
 
       await this.prisma.analysis.update({
         where: { id: analysisId },
@@ -73,6 +86,14 @@ export class AnalysisProcessorService {
         }
       })
 
+      countQueueMetric('queue.completed', 1, {
+        status: AnalysisStatus.DONE,
+        workerId
+      })
+      distributionQueueMetric('queue.processing_time', processingDurationMs, 'millisecond', {
+        status: AnalysisStatus.DONE,
+        workerId
+      })
       await this.fileStorage.remove(analysis.sourceFilePath)
       await this.notifications.create({
         userId: analysis.userId,
@@ -130,6 +151,26 @@ export class AnalysisProcessorService {
         errorMessage: error instanceof Error ? error.message : 'Не удалось выполнить анализ',
         completedAt: new Date()
       }
+    })
+    const processingDurationMs = analysis.startedAt
+      ? Math.max(0, Date.now() - analysis.startedAt.getTime())
+      : null
+    const attempts = context.attemptsMade ?? analysis.attempts
+
+    countQueueMetric(status === AnalysisStatus.DEAD_LETTER ? 'queue.dead_letter' : 'queue.failed', 1, {
+      status,
+      errorCode,
+      workerId: context.workerId ?? analysis.workerId ?? undefined
+    })
+    distributionQueueMetric('queue.processing_time', processingDurationMs, 'millisecond', {
+      status,
+      errorCode,
+      workerId: context.workerId ?? analysis.workerId ?? undefined
+    })
+    distributionQueueMetric('queue.attempts', attempts, 'none', {
+      status,
+      errorCode,
+      workerId: context.workerId ?? analysis.workerId ?? undefined
     })
 
     Sentry.withScope((scope) => {
