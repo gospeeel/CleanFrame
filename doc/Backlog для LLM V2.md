@@ -57,12 +57,12 @@ V2 — почти финальная версия LLM-сервиса: отдел
   - [x] `qwen_model`;
   - [x] `policy_version`;
   - [x] `taxonomy_version`.
-- [ ] Расширить Sentry-контекст для backend queue/worker:
-  - [ ] добавлять `analysisId`, `queueJobId`, `workerId`, `attemptsMade`, `maxAttempts` в Sentry scope/tags;
-  - [ ] добавлять Sentry breadcrumbs для стадий `queued`, `processing`, `retry`, `dead-letter`, `done`;
-  - [ ] явно отправлять `captureException` при переводе job в `DEAD_LETTER`;
-  - [ ] связать trace `frontend -> backend API -> Redis/BullMQ job -> backend-worker -> Python LLM`;
-  - [ ] проверить, что Sentry events не содержат исходный текст сценария и содержимое загруженного файла.
+- [x] Расширить Sentry-контекст для backend queue/worker:
+  - [x] добавлять `analysisId`, `queueJobId`, `workerId`, `attemptsMade`, `maxAttempts` в Sentry scope/tags;
+  - [x] добавлять Sentry breadcrumbs для стадий `queued`, `processing`, `retry`, `dead-letter`, `done`;
+  - [x] явно отправлять `captureException` при переводе job в `DEAD_LETTER`;
+  - [x] связать trace `frontend -> backend API -> Redis/BullMQ job -> backend-worker -> Python LLM`;
+  - [x] проверить, что Sentry events не содержат исходный текст сценария и содержимое загруженного файла.
 
 ### V2 Architecture TODO
 

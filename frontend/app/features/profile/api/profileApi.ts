@@ -1,10 +1,7 @@
 import type {
   AdminUser,
-  AuthResponse,
   ChangePasswordPayload,
-  ConfirmEmailChangePayload,
   InviteResponse,
-  RequestEmailChangePayload,
   UserRole,
   UserSession
 } from '../model/types'
@@ -57,22 +54,6 @@ export function deleteUser({ apiBase, token }: ApiClientOptions, userId: string)
   void token
   return authFetch<{ ok: boolean }>(`${apiBase}/api/auth/admin/users/${userId}`, {
     method: 'DELETE'
-  })
-}
-
-export function requestEmailChange({ apiBase, token }: ApiClientOptions, payload: RequestEmailChangePayload) {
-  void token
-  return authFetch<{ ok: boolean }>(`${apiBase}/api/auth/profile/email/request-code`, {
-    method: 'POST',
-    body: payload
-  })
-}
-
-export function confirmEmailChange({ apiBase, token }: ApiClientOptions, payload: ConfirmEmailChangePayload) {
-  void token
-  return authFetch<AuthResponse>(`${apiBase}/api/auth/profile/email/confirm`, {
-    method: 'POST',
-    body: payload
   })
 }
 

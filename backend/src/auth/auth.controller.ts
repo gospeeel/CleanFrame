@@ -10,13 +10,11 @@ import { RolesGuard } from './roles.guard'
 import {
   CreateInviteDto,
   ChangePasswordDto,
-  ConfirmEmailChangeDto,
   JwtUser,
   LoginDto,
   PromoteUserDto,
   RefreshDto,
-  RegisterDto,
-  RequestEmailChangeDto
+  RegisterDto
 } from './auth.types'
 
 @Controller('api/auth')
@@ -50,18 +48,6 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: JwtUser) {
     return this.authService.getProfile(user)
-  }
-
-  @Post('profile/email/request-code')
-  @UseGuards(JwtAuthGuard)
-  requestEmailCode(@CurrentUser() user: JwtUser, @Body() dto: RequestEmailChangeDto) {
-    return this.authService.requestEmailChange(user, dto)
-  }
-
-  @Post('profile/email/confirm')
-  @UseGuards(JwtAuthGuard)
-  confirmEmail(@CurrentUser() user: JwtUser, @Body() dto: ConfirmEmailChangeDto) {
-    return this.authService.confirmEmailChange(user, dto)
   }
 
   @Patch('profile/password')

@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
-import { EmailVerificationPurpose, OAuthProvider, User, UserRole } from '@prisma/client'
+import { OAuthProvider, User, UserRole } from '@prisma/client'
 import axios from 'axios'
 import * as bcrypt from 'bcryptjs'
 import { randomBytes, createHash } from 'node:crypto'
@@ -16,22 +16,18 @@ import { PrismaService } from '../prisma/prisma.service'
 import { AvatarStorageService } from './avatar-storage.service'
 import {
   ChangePasswordDto,
-  ConfirmEmailChangeDto,
   CreateInviteDto,
   JwtUser,
   LoginDto,
   OAuthProfile,
   PromoteUserDto,
   RefreshDto,
-  RegisterDto,
-  RequestEmailChangeDto
+  RegisterDto
 } from './auth.types'
-import { EmailService } from './email.service'
 
 const ACCESS_TTL_SECONDS = 15 * 60
 const REFRESH_TTL_DAYS = 30
 const OAUTH_STATE_TTL_MINUTES = 10
-const EMAIL_CODE_TTL_MINUTES = 10
 
 @Injectable()
 export class AuthService {
@@ -39,8 +35,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly avatarStorageService: AvatarStorageService,
-    private readonly emailService: EmailService
+    private readonly avatarStorageService: AvatarStorageService
   ) {}
 
   async register(dto: RegisterDto) {
@@ -185,66 +180,6 @@ export class AuthService {
     }
 
     return profile
-  }
-
-  async requestEmailChange(user: JwtUser, dto: RequestEmailChangeDto) {
-    const targetEmail = this.requireEmail(dto.email)
-    const existingUser = await this.prisma.user.findUnique({ where: { email: targetEmail } })
-    if (existingUser && existingUser.id !== user.sub) {
-      throw new ConflictException('Пользователь с такой почтой уже существует')
-    }
-
-    const code = String(Math.floor(100000 + Math.random() * 900000))
-    await this.prisma.emailVerificationCode.create({
-      data: {
-        userId: user.sub,
-        targetEmail,
-        codeHash: this.hashToken(code),
-        purpose: EmailVerificationPurpose.EMAIL_CHANGE,
-        expiresAt: new Date(Date.now() + EMAIL_CODE_TTL_MINUTES * 60 * 1000)
-      }
-    })
-
-    await this.emailService.sendEmailChangeCode(targetEmail, code)
-
-    return { ok: true }
-  }
-
-  async confirmEmailChange(user: JwtUser, dto: ConfirmEmailChangeDto) {
-    const targetEmail = this.requireEmail(dto.email)
-    const code = this.requireString(dto.code, 'Код подтверждения обязателен')
-    const verification = await this.prisma.emailVerificationCode.findFirst({
-      where: {
-        userId: user.sub,
-        targetEmail,
-        purpose: EmailVerificationPurpose.EMAIL_CHANGE,
-        codeHash: this.hashToken(code),
-        usedAt: null,
-        expiresAt: { gt: new Date() }
-      },
-      orderBy: { createdAt: 'desc' }
-    })
-
-    if (!verification) {
-      throw new BadRequestException('Код подтверждения недействителен или истёк')
-    }
-
-    const updatedUser = await this.prisma.$transaction(async (tx) => {
-      await tx.emailVerificationCode.update({
-        where: { id: verification.id },
-        data: { usedAt: new Date() }
-      })
-
-      return tx.user.update({
-        where: { id: user.sub },
-        data: {
-          email: targetEmail,
-          emailVerifiedAt: new Date()
-        }
-      })
-    })
-
-    return this.issueSession(updatedUser)
   }
 
   async changePassword(user: JwtUser, dto: ChangePasswordDto) {

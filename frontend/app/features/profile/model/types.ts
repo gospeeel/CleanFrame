@@ -24,15 +24,6 @@ export interface InviteResponse {
   createdAt: string
 }
 
-export interface RequestEmailChangePayload {
-  email: string
-}
-
-export interface ConfirmEmailChangePayload {
-  email: string
-  code: string
-}
-
 export interface ChangePasswordPayload {
   currentPassword: string
   newPassword: string

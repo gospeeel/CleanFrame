@@ -19,17 +19,13 @@ const {
   banUserMutation,
   unbanUserMutation,
   deleteUserMutation,
-  requestEmailMutation,
-  confirmEmailMutation,
   changePasswordMutation,
   uploadAvatarMutation
 } = useProfileQueries()
 
 const inviteHours = shallowRef(24)
 const copiedInvite = shallowRef(false)
-const emailCodeRequested = shallowRef(false)
 const avatarError = shallowRef('')
-const emailError = shallowRef('')
 const passwordError = shallowRef('')
 const passwordSuccess = shallowRef('')
 const confirmAction = shallowRef<{
@@ -39,11 +35,6 @@ const confirmAction = shallowRef<{
   tone: 'default' | 'danger'
   run: () => Promise<void>
 } | null>(null)
-
-const emailForm = reactive({
-  email: '',
-  code: ''
-})
 
 const passwordForm = reactive({
   currentPassword: '',
@@ -67,7 +58,6 @@ const profileRows = computed(() => [
   { label: 'Почта', value: user.value?.email ?? '-' },
   { label: 'Роль', value: formatRole(user.value?.role) },
   { label: 'Статус', value: user.value?.isActive ? 'Активен' : 'Отключён' },
-  { label: 'Почта подтверждена', value: user.value?.emailVerifiedAt ? formatDate(user.value.emailVerifiedAt) : 'Нет' },
   { label: 'Создан', value: user.value?.createdAt ? formatDate(user.value.createdAt) : '-' }
 ])
 
@@ -102,28 +92,6 @@ async function uploadAvatar(event: Event) {
     if (avatarInputRef.value) {
       avatarInputRef.value.value = ''
     }
-  }
-}
-
-async function requestEmailCode() {
-  emailError.value = ''
-  emailCodeRequested.value = false
-  try {
-    await requestEmailMutation.mutateAsync({ email: emailForm.email })
-    emailCodeRequested.value = true
-  } catch {
-    emailError.value = 'Не удалось отправить код подтверждения'
-  }
-}
-
-async function confirmEmail() {
-  emailError.value = ''
-  try {
-    await confirmEmailMutation.mutateAsync({ email: emailForm.email, code: emailForm.code })
-    emailForm.code = ''
-    emailCodeRequested.value = false
-  } catch {
-    emailError.value = 'Код не подошёл или срок действия истёк'
   }
 }
 
@@ -280,28 +248,6 @@ onMounted(() => {
             <input ref="avatarInput" class="sr-only" accept="image/*" type="file" @change="uploadAvatar">
           </div>
           <p v-if="avatarError" class="profile-error">{{ avatarError }}</p>
-
-          <form class="settings-form" @submit.prevent="requestEmailCode">
-            <label>
-              <span>Новая почта</span>
-              <input v-model="emailForm.email" autocomplete="email" placeholder="name@example.com" type="email">
-            </label>
-            <button class="profile-button profile-button-secondary" type="submit" :disabled="requestEmailMutation.isPending.value">
-              Отправить код
-            </button>
-          </form>
-
-          <form v-if="emailCodeRequested" class="settings-form" @submit.prevent="confirmEmail">
-            <label>
-              <span>Код подтверждения</span>
-              <input v-model="emailForm.code" inputmode="numeric" placeholder="6 цифр" type="text">
-            </label>
-            <button class="profile-button" type="submit" :disabled="confirmEmailMutation.isPending.value">
-              Подтвердить почту
-            </button>
-          </form>
-          <p v-if="emailCodeRequested" class="profile-success">Код отправлен на новую почту</p>
-          <p v-if="emailError" class="profile-error">{{ emailError }}</p>
 
           <form class="password-grid" @submit.prevent="changePassword">
             <label>

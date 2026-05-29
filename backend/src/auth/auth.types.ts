@@ -38,15 +38,6 @@ export interface PromoteUserDto {
   role?: UserRole
 }
 
-export interface RequestEmailChangeDto {
-  email?: string
-}
-
-export interface ConfirmEmailChangeDto {
-  email?: string
-  code?: string
-}
-
 export interface ChangePasswordDto {
   currentPassword?: string
   newPassword?: string

@@ -108,8 +108,6 @@ POST /api/auth/refresh
 POST /api/auth/logout
 GET  /api/auth/me
 
-POST   /api/auth/profile/email/request-code
-POST   /api/auth/profile/email/confirm
 PATCH  /api/auth/profile/password
 POST   /api/auth/profile/avatar
 DELETE /api/auth/profile/avatar
@@ -190,15 +188,7 @@ VK_CLIENT_SECRET=
 
 OAuth callback backend возвращает пользователя на `/oauth/callback`, где frontend сохраняет полученную сессию в Pinia store.
 
-Для смены email используется реальная SMTP-отправка одноразового кода:
-
-```env
-SMTP_HOST=smtp-relay.brevo.com
-SMTP_PORT=587
-SMTP_USER=your-brevo-smtp-login
-SMTP_PASSWORD=your-brevo-smtp-key
-SMTP_FROM="Чистый Кадр <your-verified-email@example.com>"
-```
+Смена email временно отключена: SMTP/Brevo не требуется для локального запуска проекта.
 
 Аватары профиля загружаются в S3-compatible storage. Для бесплатного старта можно использовать Cloudflare R2, в `users.avatar_url` хранится публичный URL:
 

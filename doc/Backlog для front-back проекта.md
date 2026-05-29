@@ -3,7 +3,7 @@
 ## Summary
 Да, очередь нужна. Текущий backend запускает анализ in-process сразу после `POST /api/analyses`, поэтому несколько параллельных анализов зависят от жизни одного backend-процесса и могут потеряться при restart. Для production нужно перейти на durable queue: пользователь может отправить несколько файлов, backend поставит их в очередь, worker обработает по порядку/параллельно, а UI уведомит пользователя о завершении.
 
-Уведомления добавляем отдельным слоем: сначала in-app notifications + polling/SSE, затем browser push/email как v2 backlog.
+Уведомления добавляем отдельным слоем: сначала in-app notifications + polling/SSE, затем browser push как v2 backlog. Email/Brevo отложены до появления VPS и доменного имени.
 
 ## Key Changes
 
@@ -66,7 +66,8 @@
   - mark read endpoint.
 - Delivery v2:
   - SSE или WebSocket для realtime;
-  - browser push/email как optional настройка.
+  - browser push как optional настройка;
+  - email/Brevo не подключать до появления VPS и доменного имени.
 
 ### P0: IMDb‑Style Report
 - Переработать `/report` под UX IMDb Parents Guide:
@@ -274,7 +275,8 @@
 - [ ] Frontend notification realtime:
   - [x] SSE stream добавлен через `GET /api/notifications/stream`;
   - [x] polling оставлен как fallback;
-  - [ ] browser push/email как opt-in настройка.
+  - [ ] browser push как opt-in настройка;
+  - [ ] email/Brevo отложены до VPS и доменного имени.
 - [x] Timeline metadata нормализуется на уровне backend:
   - [x] валидируются/нормализуются `scene_id`, `scene_header`, `page`, `element_index`, `timeline_position`;
   - [x] добавлен fallback timeline position при неполных данных.
@@ -335,8 +337,9 @@
 
 ### Что Можно Сделать Позже
 
-- [ ] SSE/WebSocket вместо polling.
-- [ ] Browser push/email notifications как пользовательская настройка.
+- [x] SSE вместо polling как основной realtime-канал, polling оставлен fallback.
+- [ ] Browser push notifications как пользовательская настройка.
+- [ ] Email/Brevo notifications после появления VPS и доменного имени.
 - [ ] S3/R2 private object storage для upload-файлов.
 - [ ] Admin/ops экран для queue status, failed/dead-letter jobs и ручного retry.
 - [ ] Privacy mode для скрытия raw file names в UI/logs/Sentry.

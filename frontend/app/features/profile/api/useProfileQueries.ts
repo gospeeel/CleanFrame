@@ -2,16 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed } from 'vue'
 import { useRuntimeConfig } from '#app'
 import { useAuthStore } from '~/entities/user'
-import type { ChangePasswordPayload, ConfirmEmailChangePayload, RequestEmailChangePayload, UserRole } from '../model/types'
+import type { ChangePasswordPayload, UserRole } from '../model/types'
 import {
   banUser,
   changePassword,
-  confirmEmailChange,
   createAdminInvite,
   deleteUser,
   deleteAvatar,
   fetchAdminUsers,
-  requestEmailChange,
   unbanUser,
   updateUserRole,
   uploadAvatar
@@ -58,18 +56,6 @@ export function useProfileQueries() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-users'] })
   })
 
-  const requestEmailMutation = useMutation({
-    mutationFn: (payload: RequestEmailChangePayload) => requestEmailChange(clientOptions.value, payload)
-  })
-
-  const confirmEmailMutation = useMutation({
-    mutationFn: (payload: ConfirmEmailChangePayload) => confirmEmailChange(clientOptions.value, payload),
-    onSuccess: (session) => {
-      auth.applySession(session)
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
-    }
-  })
-
   const changePasswordMutation = useMutation({
     mutationFn: (payload: ChangePasswordPayload) => changePassword(clientOptions.value, payload)
   })
@@ -97,8 +83,6 @@ export function useProfileQueries() {
     banUserMutation,
     unbanUserMutation,
     deleteUserMutation,
-    requestEmailMutation,
-    confirmEmailMutation,
     changePasswordMutation,
     uploadAvatarMutation,
     deleteAvatarMutation
