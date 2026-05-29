@@ -1,0 +1,17 @@
+.venv
+__pycache__
+*.pyc
+uploads
+outputs
+reports
+model_candidates
+trained_model_candidate
+trained_model
+models
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.npy
+.env
+.env.*

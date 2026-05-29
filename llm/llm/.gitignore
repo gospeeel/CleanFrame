@@ -1,0 +1,9 @@
+__pycache__/
+venv/
+rubert_models/models/
+trained_model/
+rubert_models/last_dataset.csv
+rubert_models/results/
+all_suspicious.json
+max_rating_scenes.json
+pipeline_output.json

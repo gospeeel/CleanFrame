@@ -1,0 +1,221 @@
+name: clean-frame
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: clean-frame-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ml_wink
+      POSTGRES_USER: ml_wink
+      POSTGRES_PASSWORD: ml_wink_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ml_wink -d ml_wink"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: clean-frame-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  llm:
+    container_name: clean-frame-llm
+    build:
+      context: ./llm
+    env_file:
+      - path: ./llm/.env
+        required: false
+    ports:
+      - "8001:8001"
+    environment:
+      RUBERT_MODEL_DIR: /models/trained_model
+      LLM_PRELOAD_MODEL: "true"
+      LLM_RECOMMENDATIONS_ENABLED: "true"
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: qwen2.5:3b-instruct
+    volumes:
+      - ./llm/trained_model:/models/trained_model:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/ready')"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  backend:
+    container_name: clean-frame-backend
+    build:
+      context: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: "8000"
+      LLM_SERVICE_URL: http://llm:8001
+      DATABASE_URL: postgresql://ml_wink:ml_wink_password@postgres:5432/ml_wink?schema=public
+      REDIS_URL: redis://redis:6379
+      ANALYSIS_WORKER_ENABLED: "false"
+      ANALYSIS_QUEUE_ATTEMPTS: "2"
+      ANALYSIS_QUEUE_CONCURRENCY: "1"
+      ANALYSIS_LONG_RUNNING_NOTIFICATIONS_ENABLED: "false"
+      ANALYSIS_RETENTION_CLEANUP_ENABLED: "false"
+      JWT_ACCESS_SECRET: change-me-access
+      BACKEND_PUBLIC_URL: http://localhost:8000
+      FRONTEND_URL: http://localhost:3000
+      PRIVACY_MODE: "false"
+    depends_on:
+      backend-seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      llm:
+        condition: service_healthy
+
+  backend-migrate:
+    container_name: clean-frame-backend-migrate
+    build:
+      context: ./backend
+    command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://ml_wink:ml_wink_password@postgres:5432/ml_wink?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  backend-seed:
+    container_name: clean-frame-backend-seed
+    build:
+      context: ./backend
+    command:
+      - sh
+      - -lc
+      - |
+        export SEED_ADMIN_LOGIN="$${SEED_ADMIN_LOGIN:-admin}"
+        export SEED_ADMIN_EMAIL="$${SEED_ADMIN_EMAIL:-admin@example.com}"
+        export SEED_ADMIN_PASSWORD="$${SEED_ADMIN_PASSWORD:-admin123}"
+        node <<'JS'
+        const { PrismaPg } = require('@prisma/adapter-pg')
+        const { PrismaClient, UserRole } = require('@prisma/client')
+        const bcrypt = require('bcryptjs')
+
+        const connectionString = process.env.DATABASE_URL
+        if (!connectionString) {
+          throw new Error('DATABASE_URL is required')
+        }
+
+        const login = (process.env.SEED_ADMIN_LOGIN || 'admin').trim().toLowerCase()
+        const email = (process.env.SEED_ADMIN_EMAIL || 'admin@example.com').trim().toLowerCase()
+        const password = process.env.SEED_ADMIN_PASSWORD || 'admin123'
+
+        if (password.length < 8) {
+          throw new Error('SEED_ADMIN_PASSWORD must be at least 8 characters')
+        }
+
+        const prisma = new PrismaClient({
+          adapter: new PrismaPg({ connectionString })
+        })
+
+        async function main() {
+          const passwordHash = await bcrypt.hash(password, 12)
+          const user = await prisma.user.upsert({
+            where: { email },
+            update: {
+              login,
+              passwordHash,
+              role: UserRole.SUPER_ADMIN,
+              isActive: true
+            },
+            create: {
+              login,
+              email,
+              passwordHash,
+              role: UserRole.SUPER_ADMIN,
+              isActive: true
+            }
+          })
+          console.log('Super admin ready: ' + user.email + ' (' + user.id + ')')
+        }
+
+        main()
+          .catch((error) => {
+            console.error(error)
+            process.exitCode = 1
+          })
+          .finally(async () => {
+            await prisma[String.fromCharCode(36) + 'disconnect']()
+          })
+        JS
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://ml_wink:ml_wink_password@postgres:5432/ml_wink?schema=public
+    depends_on:
+      backend-migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  backend-worker:
+    container_name: clean-frame-backend-worker
+    build:
+      context: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    command: ["node", "dist/src/worker.js"]
+    environment:
+      LLM_SERVICE_URL: http://llm:8001
+      DATABASE_URL: postgresql://ml_wink:ml_wink_password@postgres:5432/ml_wink?schema=public
+      REDIS_URL: redis://redis:6379
+      ANALYSIS_WORKER_ENABLED: "true"
+      ANALYSIS_QUEUE_ATTEMPTS: "2"
+      ANALYSIS_QUEUE_CONCURRENCY: "1"
+      ANALYSIS_LONG_RUNNING_NOTIFICATIONS_ENABLED: "true"
+      ANALYSIS_RETENTION_CLEANUP_ENABLED: "true"
+      JWT_ACCESS_SECRET: change-me-access
+      BACKEND_PUBLIC_URL: http://localhost:8000
+      FRONTEND_URL: http://localhost:3000
+      PRIVACY_MODE: "false"
+    depends_on:
+      backend-seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      llm:
+        condition: service_healthy
+
+  frontend:
+    container_name: clean-frame-frontend
+    build:
+      context: ./frontend
+    env_file:
+      - path: ./frontend/.env
+        required: false
+    ports:
+      - "3000:3000"
+    environment:
+      NUXT_PUBLIC_API_BASE: http://localhost:8000
+      NUXT_PUBLIC_PRIVACY_MODE: "false"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

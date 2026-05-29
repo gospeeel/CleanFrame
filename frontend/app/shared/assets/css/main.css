@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-ink: #212826;
+  --color-muted: #68736e;
+  --color-paper: #f7f1e8;
+  --color-milk: #fffaf1;
+  --color-panel: rgba(255, 250, 241, 0.84);
+  --color-coral: #b9604b;
+  --color-mint: #87a694;
+  --color-blue: #526f7a;
+  --color-brass: #b8925d;
+  --color-plum: #6f5965;
+  --line: rgba(50, 58, 54, 0.14);
+  --radius-panel: 22px;
+  --radius-control: 14px;
+}
+
+html {
+  min-width: 320px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(223, 91, 63, 0.2);
+}
+
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.glass-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+  box-shadow: 0 28px 90px rgba(42, 48, 44, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.66);
+  backdrop-filter: blur(18px) saturate(1.04);
+}
+
+.hairline-grid {
+  background-image:
+    linear-gradient(135deg, rgba(82, 111, 122, 0.1), transparent 42%),
+    linear-gradient(24deg, rgba(184, 146, 93, 0.12), transparent 52%);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.page-shell {
+  width: min(100% - 32px, 1440px);
+  margin-inline: auto;
+  padding-block: clamp(24px, 4vw, 48px);
+}
+
+.page-title {
+  font-size: clamp(2.5rem, 4.2vw, 4.75rem);
+  line-height: 0.98;
+  letter-spacing: 0;
+}
+
+.section-title {
+  font-size: clamp(2.25rem, 3.6vw, 4rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.panel-pad {
+  padding: clamp(1.25rem, 2.5vw, 2.5rem);
+}
+
+@media (max-width: 767px) {
+  .page-shell {
+    width: min(100% - 24px, 1440px);
+    padding-block: 20px 32px;
+  }
+}

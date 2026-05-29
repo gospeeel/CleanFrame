@@ -1,0 +1,190 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ANALYST
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum OAuthProvider {
+  GOOGLE
+  YANDEX
+  VK
+}
+
+enum EmailVerificationPurpose {
+  EMAIL_CHANGE
+}
+
+enum AnalysisStatus {
+  QUEUED
+  PROCESSING
+  DONE
+  FAILED
+  DEAD_LETTER
+  CANCELLED
+}
+
+enum NotificationType {
+  ANALYSIS_DONE
+  ANALYSIS_FAILED
+  ANALYSIS_LONG_RUNNING
+  ANALYSIS_CANCELLED
+}
+
+model User {
+  id                     String                  @id @default(uuid()) @db.Uuid
+  login                  String                  @unique @db.VarChar(48)
+  email                  String                  @unique @db.VarChar(254)
+  emailVerifiedAt        DateTime?               @map("email_verified_at")
+  avatarUrl              String?                 @map("avatar_url") @db.VarChar(1024)
+  passwordHash           String?                 @map("password_hash")
+  role                   UserRole                @default(ANALYST)
+  isActive               Boolean                 @default(true) @map("is_active")
+  createdAt              DateTime                @default(now()) @map("created_at")
+  updatedAt              DateTime                @updatedAt @map("updated_at")
+  accounts               AuthAccount[]
+  refreshTokens          RefreshToken[]
+  createdInvites         AdminInvite[]           @relation("InviteCreator")
+  usedInvites            AdminInvite[]           @relation("InviteUser")
+  oauthStates            OAuthState[]
+  emailVerificationCodes EmailVerificationCode[]
+  analyses               Analysis[]
+  notifications          Notification[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model Analysis {
+  id             String         @id @default(uuid()) @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  fileName       String         @map("file_name") @db.VarChar(255)
+  status         AnalysisStatus @default(QUEUED)
+  maxRating      String?        @map("max_rating") @db.VarChar(8)
+  riskCount      Int            @default(0) @map("risk_count")
+  reviewCount    Int            @default(0) @map("review_count")
+  processingTime Float?         @map("processing_time")
+  resultJson     Json?          @map("result_json")
+  errorMessage   String?        @map("error_message")
+  errorCode      String?        @map("error_code") @db.VarChar(64)
+  sourceFilePath String?        @map("source_file_path") @db.VarChar(1024)
+  queueJobId     String?        @map("queue_job_id") @db.VarChar(128)
+  queuedAt       DateTime       @default(now()) @map("queued_at")
+  startedAt      DateTime?      @map("started_at")
+  attempts       Int            @default(0)
+  workerId       String?        @map("worker_id") @db.VarChar(128)
+  completedAt    DateTime?      @map("completed_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifications  Notification[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@index([queueJobId])
+  @@map("analyses")
+}
+
+model Notification {
+  id         String           @id @default(uuid()) @db.Uuid
+  userId     String           @map("user_id") @db.Uuid
+  type       NotificationType
+  title      String           @db.VarChar(160)
+  message    String           @db.VarChar(512)
+  analysisId String?          @map("analysis_id") @db.Uuid
+  readAt     DateTime?        @map("read_at")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysis   Analysis?        @relation(fields: [analysisId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt, createdAt])
+  @@index([analysisId])
+  @@map("notifications")
+}
+
+model EmailVerificationCode {
+  id          String                   @id @default(uuid()) @db.Uuid
+  userId      String                   @map("user_id") @db.Uuid
+  targetEmail String                   @map("target_email") @db.VarChar(254)
+  codeHash    String                   @map("code_hash")
+  purpose     EmailVerificationPurpose
+  expiresAt   DateTime                 @map("expires_at")
+  usedAt      DateTime?                @map("used_at")
+  createdAt   DateTime                 @default(now()) @map("created_at")
+  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([targetEmail])
+  @@index([expiresAt])
+  @@map("email_verification_codes")
+}
+
+model OAuthState {
+  id           String        @id @default(uuid()) @db.Uuid
+  userId       String?       @map("user_id") @db.Uuid
+  provider     OAuthProvider
+  stateHash    String        @unique @map("state_hash")
+  codeVerifier String?       @map("code_verifier")
+  redirectTo   String?       @map("redirect_to")
+  expiresAt    DateTime      @map("expires_at")
+  usedAt       DateTime?     @map("used_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("oauth_states")
+}
+
+model AuthAccount {
+  id                String        @id @default(uuid()) @db.Uuid
+  userId            String        @map("user_id") @db.Uuid
+  provider          OAuthProvider
+  providerAccountId String        @map("provider_account_id") @db.VarChar(160)
+  email             String?       @db.VarChar(254)
+  createdAt         DateTime      @default(now()) @map("created_at")
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("auth_accounts")
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model AdminInvite {
+  id        String    @id @default(uuid()) @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  role      UserRole  @default(ADMIN)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String    @map("created_by") @db.Uuid
+  usedBy    String?   @map("used_by") @db.Uuid
+  creator   User      @relation("InviteCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  usedUser  User?     @relation("InviteUser", fields: [usedBy], references: [id], onDelete: SetNull)
+
+  @@index([createdBy])
+  @@index([usedBy])
+  @@index([expiresAt])
+  @@map("admin_invites")
+}

@@ -1,0 +1,40 @@
+# Backend
+fastapi>=0.121.2
+uvicorn>=0.38.0
+python-multipart>=0.0.20
+
+# NLP and RuBERT
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.6.0+cpu
+transformers>=4.46.0,<5.0.0
+tokenizers>=0.20.0,<0.22.0
+safetensors>=0.4.3
+
+# Russian NLP
+natasha>=1.5.0
+pymorphy2>=0.9.0
+pymorphy2-dicts-ru>=2.4.0
+razdel>=0.5.0
+navec>=0.10.0
+slovnet>=0.6.0
+yargy>=0.16.0
+ruwordnet>=0.0.6
+
+# Data and ML
+pandas>=1.5.0
+numpy>=1.21.0
+scikit-learn>=1.0.0
+scipy>=1.7.0
+joblib>=1.0.0
+
+# Documents
+python-docx>=0.8.0
+pdfplumber>=0.5.0
+lxml>=4.9.0
+
+# Utilities
+setuptools>=70.0.0,<81.0.0
+tqdm>=4.60.0
+requests>=2.25.0
+urllib3>=1.26.0
+sentry-sdk>=2.0.0,<3.0.0
