@@ -77,6 +77,8 @@ services:
       BACKEND_PUBLIC_URL: http://localhost:8000
       FRONTEND_URL: http://localhost:3000
       PRIVACY_MODE: "false"
+    volumes:
+      - analysis_uploads:/service/uploads/analysis
     depends_on:
       backend-seed:
         condition: service_completed_successfully
@@ -194,6 +196,8 @@ services:
       BACKEND_PUBLIC_URL: http://localhost:8000
       FRONTEND_URL: http://localhost:3000
       PRIVACY_MODE: "false"
+    volumes:
+      - analysis_uploads:/service/uploads/analysis
     depends_on:
       backend-seed:
         condition: service_completed_successfully
@@ -219,3 +223,4 @@ services:
 
 volumes:
   postgres_data:
+  analysis_uploads:
