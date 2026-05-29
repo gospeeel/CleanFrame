@@ -12,13 +12,22 @@ const isReady = computed(() => isRestored.value && !isRestoring.value)
 
 watch(isReady, () => {
   if (isReady.value && !isAdmin.value) {
-    navigateTo('/')
+    navigateTo('/forbidden')
   }
 }, { immediate: true })
 </script>
 
 <template>
-  <OpsQueuePanel v-if="isAdmin" />
+  <OpsQueuePanel v-if="isReady && isAdmin" />
+  <section v-else-if="!isReady" class="page-shell max-w-[720px]">
+    <div class="glass-panel rounded-[18px] p-6">
+      <p class="text-xs font-black uppercase tracking-[0.24em] text-steel">Admin ops</p>
+      <h1 class="section-title mt-3 font-display font-semibold text-ink">Проверяем доступ</h1>
+      <p class="mt-4 text-sm font-bold leading-7 text-muted">
+        Восстанавливаем сессию администратора.
+      </p>
+    </div>
+  </section>
   <section v-else class="page-shell max-w-[720px]">
     <div class="glass-panel rounded-[18px] p-6">
       <p class="text-xs font-black uppercase tracking-[0.24em] text-steel">Admin ops</p>

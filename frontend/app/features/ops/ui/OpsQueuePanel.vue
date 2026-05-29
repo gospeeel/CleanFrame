@@ -20,12 +20,26 @@ const statusCards = computed(() => {
 const queueCards = computed(() => {
   const queue = summary.value?.queue
   return [
-    { label: 'Active', value: queue?.active ?? 0 },
-    { label: 'Waiting', value: queue?.waiting ?? 0 },
-    { label: 'Delayed', value: queue?.delayed ?? 0 },
     { label: 'Concurrency', value: queue?.concurrency ?? 0 },
     { label: 'Utilization', value: `${Math.round(queue?.utilizationPercent ?? 0)}%` }
   ]
+})
+const queueBars = computed(() => {
+  const queue = summary.value?.queue
+  const items = [
+    { label: 'Active', value: queue?.active ?? 0, tone: 'active' },
+    { label: 'Waiting', value: queue?.waiting ?? 0, tone: 'waiting' },
+    { label: 'Delayed', value: queue?.delayed ?? 0, tone: 'delayed' },
+    { label: 'Failed', value: queue?.failed ?? 0, tone: 'failed' },
+    { label: 'Completed', value: queue?.completed ?? 0, tone: 'completed' }
+  ]
+  const maxValue = Math.max(...items.map((item) => item.value), 1)
+
+  return items.map((item) => ({
+    ...item,
+    percent: Math.round((item.value / maxValue) * 100),
+    scale: item.value === 0 ? '0' : Math.max(0.08, item.value / maxValue).toFixed(3)
+  }))
 })
 const rows = computed(() => summary.value?.items ?? [])
 
@@ -113,8 +127,8 @@ onMounted(() => {
       </article>
     </div>
 
-    <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <article data-ops-card class="ops-panel glass-panel opacity-0">
+    <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.82fr)_minmax(380px,1fr)]">
+      <article data-ops-card class="ops-panel ops-panel-compact glass-panel opacity-0">
         <div class="ops-panel-head">
           <div>
             <p class="ops-kicker">Latency</p>
@@ -141,11 +155,40 @@ onMounted(() => {
       </article>
 
       <article data-ops-card class="ops-panel glass-panel opacity-0">
-        <p class="ops-kicker">BullMQ</p>
-        <div class="ops-queue-list">
-          <div v-for="item in queueCards" :key="item.label">
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
+        <div class="ops-panel-head">
+          <div>
+            <p class="ops-kicker">BullMQ</p>
+            <h2>Статусы очереди</h2>
+          </div>
+          <div class="ops-queue-list ops-queue-list-inline">
+            <div v-for="item in queueCards" :key="item.label">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+          </div>
+        </div>
+        <div class="ops-bars" aria-label="Статусы очереди BullMQ">
+          <div
+            v-for="item in queueBars"
+            :key="item.label"
+            class="ops-bar-row"
+            :data-tone="item.tone"
+            :style="{ '--bar-scale': item.scale }"
+          >
+            <div class="ops-bar-meta">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }} · {{ item.percent }}%</strong>
+            </div>
+            <div
+              class="ops-bar-track"
+              role="progressbar"
+              :aria-label="item.label"
+              :aria-valuenow="item.value"
+              aria-valuemin="0"
+              :aria-valuemax="Math.max(...queueBars.map((bar) => bar.value), 1)"
+            >
+              <div class="ops-bar-fill" />
+            </div>
           </div>
         </div>
       </article>
@@ -239,6 +282,10 @@ onMounted(() => {
   padding: 18px;
 }
 
+.ops-panel-compact {
+  align-self: start;
+}
+
 .ops-panel-head,
 .ops-table-head {
   display: flex;
@@ -282,6 +329,86 @@ onMounted(() => {
   display: grid;
   gap: 8px;
   margin-top: 14px;
+}
+
+.ops-queue-list-inline {
+  grid-template-columns: repeat(2, minmax(92px, 1fr));
+  margin-top: 0;
+  min-width: 220px;
+}
+
+.ops-bars {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.ops-bar-row {
+  display: grid;
+  gap: 7px;
+}
+
+.ops-bar-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.ops-bar-meta span {
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ops-bar-meta strong {
+  color: var(--color-ink);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.ops-bar-track {
+  height: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(82, 111, 122, 0.22);
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(82, 111, 122, 0.08), rgba(255, 250, 241, 0.68)),
+    rgba(255, 250, 241, 0.9);
+  box-shadow: inset 0 1px 2px rgba(33, 43, 41, 0.08);
+}
+
+.ops-bar-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-blue);
+  transform: scaleX(var(--bar-scale, 0));
+  transform-origin: left center;
+  transition: transform 240ms ease;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.ops-bar-row[data-tone="active"] .ops-bar-fill {
+  background: linear-gradient(90deg, var(--color-blue), #6f8c98);
+}
+
+.ops-bar-row[data-tone="waiting"] .ops-bar-fill {
+  background: linear-gradient(90deg, var(--color-brass), #d0aa72);
+}
+
+.ops-bar-row[data-tone="delayed"] .ops-bar-fill {
+  background: linear-gradient(90deg, var(--color-muted), #8c9996);
+}
+
+.ops-bar-row[data-tone="failed"] .ops-bar-fill {
+  background: linear-gradient(90deg, var(--color-signal), #d07957);
+}
+
+.ops-bar-row[data-tone="completed"] .ops-bar-fill {
+  background: linear-gradient(90deg, var(--color-blue), #2f5663);
 }
 
 .ops-table {
@@ -399,13 +526,22 @@ onMounted(() => {
 
 .ops-button-primary {
   align-self: start;
-  background: var(--color-steel);
+  background: var(--color-blue);
   color: white;
 }
 
 @media (max-width: 760px) {
   .ops-metrics-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ops-panel-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ops-queue-list-inline {
+    width: 100%;
   }
 
   .ops-row {

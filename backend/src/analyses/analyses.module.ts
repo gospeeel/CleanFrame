@@ -4,6 +4,7 @@ import { LlmModule } from '../llm/llm.module'
 import { NotificationsModule } from '../notifications/notifications.module'
 import { AnalysisFileStorageService } from './analysis-file-storage.service'
 import { AnalysisMonitorService } from './analysis-monitor.service'
+import { AnalysisPdfService } from './analysis-pdf.service'
 import { AnalysisProcessorService } from './analysis-processor.service'
 import { AnalysisQueueService } from './analysis-queue.service'
 import { AnalysisRetentionService } from './analysis-retention.service'
@@ -17,6 +18,7 @@ import { AnalysesService } from './analyses.service'
     AnalysesService,
     AnalysisFileStorageService,
     AnalysisMonitorService,
+    AnalysisPdfService,
     AnalysisProcessorService,
     AnalysisQueueService,
     AnalysisRetentionService

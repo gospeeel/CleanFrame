@@ -2,6 +2,7 @@
 import anime from 'animejs'
 import { computed, onMounted, useTemplateRef } from 'vue'
 import type { AnalysisDetails, SuspiciousScene } from '~/entities/analysis'
+import { formatCategory } from '~/entities/analysis/model/presentation'
 import { useCompareQueries } from '~/features/compare'
 import { createSmoothTimeline, prefersReducedMotion, smoothMotion } from '~/shared/lib/motion'
 
@@ -23,7 +24,6 @@ interface Snapshot {
     addedCategories: string[]
     removedCategories: string[]
   } | null
-  metadata: Array<{ label: string; value: string }>
 }
 
 const rootRef = useTemplateRef<HTMLElement>('root')
@@ -61,12 +61,11 @@ const selectedIdSet = computed(() => new Set(selectedIds.value))
 function toSnapshot(analysis: AnalysisDetails, base: Snapshot | null): Snapshot {
   const scenes = extractScenes(analysis)
   const categories = scenes.reduce<Record<string, number>>((acc, scene) => {
-    const category = scene.category_label ?? scene.категория ?? scene.primary_category ?? 'Без категории'
+    const category = scene.category_label ?? formatCategory(scene.category_id ?? scene.primary_category ?? scene.категория)
     acc[category] = (acc[category] ?? 0) + 1
     return acc
   }, {})
   const maxRating = analysis.result?.статистика?.максимальный_рейтинг ?? analysis.maxRating ?? '-'
-  const metadata = extractMetadata(analysis)
 
   return {
     id: analysis.id,
@@ -78,7 +77,6 @@ function toSnapshot(analysis: AnalysisDetails, base: Snapshot | null): Snapshot 
     reviewCount: analysis.reviewCount,
     sceneCount: scenes.length,
     categories,
-    metadata,
     changedFromBase: base
       ? {
           rating: maxRating !== base.maxRating,
@@ -96,31 +94,6 @@ function extractScenes(analysis: AnalysisDetails): SuspiciousScene[] {
   return analysis.result?.все_подозрительные_сцены ?? analysis.result?.обработанные_сцены ?? []
 }
 
-function extractMetadata(analysis: AnalysisDetails) {
-  const metadata = analysis.result?.metadata as Record<string, unknown> | undefined
-  const rubert = toRecord(metadata?.rubert)
-  const qwen = toRecord(metadata?.qwen)
-
-  return [
-    { label: 'RuBERT', value: stringifyMeta(rubert?.model_name ?? rubert?.model_version) },
-    { label: 'Qwen', value: stringifyMeta(qwen?.model_name) },
-    { label: 'Policy', value: stringifyMeta(metadata?.policy_version) },
-    { label: 'Taxonomy', value: stringifyMeta(metadata?.taxonomy_version) }
-  ].filter((item) => item.value !== '-')
-}
-
-function toRecord(value: unknown) {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
-}
-
-function stringifyMeta(value: unknown) {
-  if (typeof value === 'string' || typeof value === 'number') {
-    return String(value)
-  }
-
-  return '-'
-}
-
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('ru-RU', {
     day: '2-digit',
@@ -136,6 +109,20 @@ function formatDelta(value: number) {
   }
 
   return value > 0 ? `+${value}` : String(value)
+}
+
+function shouldShowDelta(value: number) {
+  return value !== 0
+}
+
+function statusLabel(status: AnalysisDetails['status']) {
+  if (status === 'DONE') return 'Готово'
+  if (status === 'QUEUED') return 'В очереди'
+  if (status === 'PROCESSING') return 'В работе'
+  if (status === 'FAILED') return 'Ошибка'
+  if (status === 'DEAD_LETTER') return 'Требует retry'
+  if (status === 'CANCELLED') return 'Отменён'
+  return status
 }
 
 function canToggle(id: string) {
@@ -199,7 +186,7 @@ onMounted(() => {
           >
             <span>{{ formatDate(analysis.createdAt) }}</span>
             <strong>{{ analysis.maxRating ?? analysis.status }}</strong>
-            <small>{{ analysis.status }} · рисков: {{ analysis.riskCount }}</small>
+            <small>{{ statusLabel(analysis.status) }} · рисков: {{ analysis.riskCount }}</small>
           </button>
         </div>
       </aside>
@@ -231,27 +218,30 @@ onMounted(() => {
                 <div>
                   <span>Риски</span>
                   <b>{{ snapshot.riskCount }}</b>
-                  <em v-if="snapshot.changedFromBase">{{ formatDelta(snapshot.changedFromBase.riskCount) }}</em>
+                  <em v-if="snapshot.changedFromBase && shouldShowDelta(snapshot.changedFromBase.riskCount)">
+                    {{ formatDelta(snapshot.changedFromBase.riskCount) }}
+                  </em>
                 </div>
                 <div>
                   <span>Проверка</span>
                   <b>{{ snapshot.reviewCount }}</b>
-                  <em v-if="snapshot.changedFromBase">{{ formatDelta(snapshot.changedFromBase.reviewCount) }}</em>
+                  <em v-if="snapshot.changedFromBase && shouldShowDelta(snapshot.changedFromBase.reviewCount)">
+                    {{ formatDelta(snapshot.changedFromBase.reviewCount) }}
+                  </em>
                 </div>
                 <div>
                   <span>Сцены</span>
                   <b>{{ snapshot.sceneCount }}</b>
-                  <em v-if="snapshot.changedFromBase">{{ formatDelta(snapshot.changedFromBase.sceneCount) }}</em>
+                  <em v-if="snapshot.changedFromBase && shouldShowDelta(snapshot.changedFromBase.sceneCount)">
+                    {{ formatDelta(snapshot.changedFromBase.sceneCount) }}
+                  </em>
                 </div>
               </div>
               <p v-if="snapshot.changedFromBase?.rating" class="snapshot-note">Рейтинг изменился относительно базового запуска.</p>
-              <div v-if="snapshot.metadata.length" class="snapshot-meta">
-                <span v-for="item in snapshot.metadata" :key="item.label">{{ item.label }}: {{ item.value }}</span>
-              </div>
             </article>
           </div>
 
-          <section data-compare-card class="compare-table glass-panel opacity-0">
+          <section v-if="categoryDiffRows.length" data-compare-card class="compare-table glass-panel opacity-0">
             <div class="compare-table-head">
               <p class="compare-kicker">Категории</p>
               <span>{{ categoryDiffRows.length }} категорий</span>
@@ -269,6 +259,9 @@ onMounted(() => {
               <strong>{{ row.category }}</strong>
               <span v-for="(value, index) in row.values" :key="`${row.category}-${index}`">{{ value }}</span>
             </div>
+          </section>
+          <section v-else data-compare-card class="compare-empty compare-empty-compact glass-panel opacity-0">
+            Категории риска не найдены: выбранные запуски завершились без риск-сцен.
           </section>
 
           <section data-compare-card class="compare-table glass-panel opacity-0">
@@ -303,7 +296,7 @@ onMounted(() => {
 }
 
 .compare-kicker {
-  color: var(--color-steel);
+  color: var(--color-blue);
   font-size: 0.72rem;
   font-weight: 900;
   letter-spacing: 0.22em;
@@ -367,7 +360,6 @@ onMounted(() => {
 .snapshot-head,
 .snapshot-metrics span,
 .snapshot-metrics em,
-.snapshot-meta,
 .compare-table-head,
 .compare-category-head {
   color: var(--color-muted);
@@ -427,6 +419,9 @@ onMounted(() => {
 }
 
 .snapshot-metrics div {
+  display: grid;
+  min-height: 80px;
+  align-content: space-between;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: rgba(255, 250, 241, 0.52);
@@ -437,9 +432,16 @@ onMounted(() => {
   display: block;
   color: var(--color-ink);
   font-size: 1.15rem;
+  line-height: 1;
 }
 
 .snapshot-metrics em {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  background: rgba(82, 111, 122, 0.12);
+  padding: 3px 6px;
+  color: var(--color-blue);
   font-style: normal;
 }
 
@@ -450,17 +452,8 @@ onMounted(() => {
   font-weight: 900;
 }
 
-.snapshot-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 14px;
-}
-
-.snapshot-meta span {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 5px 8px;
+.compare-empty-compact {
+  padding: 18px;
 }
 
 .compare-table {

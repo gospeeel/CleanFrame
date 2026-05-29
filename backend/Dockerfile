@@ -28,6 +28,7 @@ WORKDIR /service
 ENV NODE_ENV=production
 
 COPY --from=build /service/node_modules ./node_modules
+COPY --from=build /service/assets ./assets
 COPY --from=build /service/dist ./dist
 COPY --from=build /service/prisma ./prisma
 COPY --from=build /service/prisma.config.ts ./prisma.config.ts

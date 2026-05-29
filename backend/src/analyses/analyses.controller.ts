@@ -5,19 +5,21 @@ import {
   Param,
   Post,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { UserRole } from '@prisma/client'
-import { Request } from 'express'
+import { Request, Response } from 'express'
 import { memoryStorage } from 'multer'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { JwtUser } from '../auth/auth.types'
+import { AnalysisPdfService } from './analysis-pdf.service'
 import { AnalysesService } from './analyses.service'
 
 const SUPPORTED_EXTENSIONS = new Set(['.docx', '.pdf', '.txt'])
@@ -25,7 +27,10 @@ const SUPPORTED_EXTENSIONS = new Set(['.docx', '.pdf', '.txt'])
 @Controller('api/analyses')
 @UseGuards(JwtAuthGuard)
 export class AnalysesController {
-  constructor(private readonly analysesService: AnalysesService) {}
+  constructor(
+    private readonly analysesService: AnalysesService,
+    private readonly pdfService: AnalysisPdfService
+  ) {}
 
   @Post()
   @UseInterceptors(
@@ -58,6 +63,17 @@ export class AnalysesController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   adminRetry(@Param('id') id: string, @Req() request: Request) {
     return this.analysesService.retryAsAdmin(id, this.requestId(request))
+  }
+
+  @Get(':id/export/pdf')
+  async exportPdf(@CurrentUser() user: JwtUser, @Param('id') id: string, @Res() response: Response) {
+    const details = await this.analysesService.get(user.sub, id)
+    const pdf = await this.pdfService.generate(details)
+
+    response.setHeader('Content-Type', 'application/pdf')
+    response.setHeader('Content-Length', String(pdf.buffer.length))
+    response.setHeader('Content-Disposition', `attachment; filename="${this.asciiFileName(pdf.fileName)}"; filename*=UTF-8''${encodeURIComponent(pdf.fileName)}`)
+    response.send(pdf.buffer)
   }
 
   @Get(':id')
@@ -98,5 +114,9 @@ export class AnalysesController {
   private requestId(request: Request) {
     const value = request.headers['x-request-id']
     return Array.isArray(value) ? value[0] : value
+  }
+
+  private asciiFileName(fileName: string) {
+    return fileName.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_')
   }
 }

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from '#app'
 import { storeToRefs } from 'pinia'
 import { useAnalysisUiStore } from '~/entities/analysis'
-import { UploadPanel, useScriptAnalysis } from '~/features/script-analysis'
+import { UploadPanel, useAnalysisClientOptions, useScriptAnalysis } from '~/features/script-analysis'
+import { exportAnalysisPdf } from '~/shared/api/analysisApi'
 import { AnalysisResult } from '~/widgets/analysis-result'
 
 const route = useRoute()
@@ -11,9 +12,13 @@ const router = useRouter()
 const uiStore = useAnalysisUiStore()
 const { selectedFileName } = storeToRefs(uiStore)
 const analysis = useScriptAnalysis()
+const clientOptions = useAnalysisClientOptions()
+const isExportingPdf = shallowRef(false)
+const exportError = shallowRef('')
 
 const result = computed(() => analysis.result.value)
 const currentAnalysisId = computed(() => analysis.activeAnalysisId.value || analysis.data.value?.id || '')
+const exportFileName = computed(() => `clean-frame-report-${currentAnalysisId.value.slice(0, 8) || 'analysis'}.pdf`)
 const errorMessage = computed(() => {
   if (analysis.data.value?.status === 'FAILED' || analysis.data.value?.status === 'DEAD_LETTER') {
     return analysis.data.value.errorMessage ?? 'Не удалось выполнить анализ'
@@ -36,6 +41,36 @@ function handleSubmit(file: File) {
   uiStore.setSelectedFile(file)
   uiStore.showResult()
   void analysis.submit(file)
+}
+
+async function handlePdfExport() {
+  if (!currentAnalysisId.value || isExportingPdf.value) {
+    return
+  }
+
+  isExportingPdf.value = true
+  exportError.value = ''
+
+  try {
+    const blob = await exportAnalysisPdf(clientOptions.value, currentAnalysisId.value)
+    downloadBlob(blob, exportFileName.value)
+  } catch (error) {
+    exportError.value = error instanceof Error ? error.message : 'Не удалось сформировать PDF'
+  } finally {
+    isExportingPdf.value = false
+  }
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = fileName
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
 }
 
 function loadRouteAnalysis() {
@@ -75,15 +110,17 @@ watch(analysis.activeAnalysisId, (id) => {
       >
         <div>
           <p class="text-xs font-black uppercase tracking-[0.2em] text-steel">Экспорт</p>
-          <p class="mt-1 text-sm font-bold text-muted">Печатная версия отчёта в PDF через браузер.</p>
+          <p class="mt-1 text-sm font-bold text-muted">Сервер сформирует стилизованный PDF и скачает файл.</p>
+          <p v-if="exportError" class="mt-1 text-xs font-bold text-signal">{{ exportError }}</p>
         </div>
-        <NuxtLink
+        <button
           class="report-print-button"
-          :to="`/report/print?id=${currentAnalysisId}`"
-          target="_blank"
+          type="button"
+          :disabled="isExportingPdf"
+          @click="handlePdfExport"
         >
-          PDF
-        </NuxtLink>
+          {{ isExportingPdf ? 'Готовим PDF' : 'Скачать PDF' }}
+        </button>
       </div>
 
       <AnalysisResult
@@ -105,20 +142,28 @@ watch(analysis.activeAnalysisId, (id) => {
   min-height: 44px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(82, 111, 122, 0.24);
+  border: 1px solid rgba(33, 43, 41, 0.12);
   border-radius: 10px;
-  background: var(--color-steel);
+  background: linear-gradient(135deg, var(--color-blue), #2f5663);
+  box-shadow: 0 14px 26px rgba(47, 86, 99, 0.28);
   color: white;
   font-size: 0.8rem;
   font-weight: 900;
-  letter-spacing: 0.14em;
-  padding: 0 18px;
+  letter-spacing: 0.08em;
+  padding: 0 20px;
   text-transform: uppercase;
-  transition: background 160ms ease, transform 160ms ease;
+  transition: box-shadow 160ms ease, filter 160ms ease, transform 160ms ease;
 }
 
 .report-print-button:hover {
-  background: var(--color-signal);
+  filter: brightness(1.05);
+  box-shadow: 0 18px 34px rgba(47, 86, 99, 0.34);
   transform: translateY(-1px);
+}
+
+.report-print-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+  transform: none;
 }
 </style>

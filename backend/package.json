@@ -32,6 +32,7 @@
     "form-data": "^4.0.0",
     "ioredis": "^5.11.0",
     "multer": "^2.0.0",
+    "pdfkit": "^0.18.0",
     "pg": "^8.21.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.0"
@@ -43,6 +44,7 @@
     "@types/express": "^5.0.0",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.0.0",
+    "@types/pdfkit": "^0.17.6",
     "@types/pg": "^8.20.0",
     "prisma": "^7.8.0",
     "tsx": "^4.20.0",

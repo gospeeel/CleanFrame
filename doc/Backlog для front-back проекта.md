@@ -341,5 +341,5 @@
 - [ ] S3/R2 private object storage для upload-файлов.
 - [x] Admin/ops экран для queue status, failed/dead-letter jobs и ручного retry.
 - [ ] Privacy mode для скрытия raw file names в UI/logs/Sentry.
-- [x] Report export в PDF через стилизованную browser print-view. HTML export не делаем.
+- [x] Report export в PDF через стилизованную backend-генерацию и прямое скачивание. HTML export не делаем.
 - [x] Отдельная страница сравнения нескольких анализов одного сценария.

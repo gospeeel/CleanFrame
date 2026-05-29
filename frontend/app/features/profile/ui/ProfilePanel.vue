@@ -98,15 +98,59 @@ async function uploadAvatar(event: Event) {
 async function changePassword() {
   passwordError.value = ''
   passwordSuccess.value = ''
+  const validationError = validatePasswordForm()
+  if (validationError) {
+    passwordError.value = validationError
+    return
+  }
+
   try {
     await changePasswordMutation.mutateAsync({ ...passwordForm })
     passwordForm.currentPassword = ''
     passwordForm.newPassword = ''
     passwordForm.confirmPassword = ''
     passwordSuccess.value = 'Пароль обновлён'
-  } catch {
-    passwordError.value = 'Не удалось обновить пароль'
+  } catch (error) {
+    passwordError.value = getErrorMessage(error, 'Не удалось обновить пароль')
   }
+}
+
+function validatePasswordForm() {
+  if (!passwordForm.currentPassword.trim()) {
+    return 'Введите текущий пароль'
+  }
+
+  if (!passwordForm.newPassword.trim()) {
+    return 'Введите новый пароль'
+  }
+
+  if (passwordForm.newPassword.length < 8 || passwordForm.newPassword.length > 128) {
+    return 'Новый пароль должен быть от 8 до 128 символов'
+  }
+
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    return 'Пароли не совпадают'
+  }
+
+  if (passwordForm.currentPassword === passwordForm.newPassword) {
+    return 'Новый пароль должен отличаться от текущего'
+  }
+
+  return ''
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  const directMessage = error instanceof Error ? error.message : ''
+  if (directMessage && directMessage !== fallback) {
+    return directMessage
+  }
+
+  const payload = (error as { data?: { message?: string | string[]; error?: string } })?.data
+  if (Array.isArray(payload?.message)) {
+    return payload.message.join(', ')
+  }
+
+  return payload?.message ?? payload?.error ?? directMessage ?? fallback
 }
 
 async function createInvite() {

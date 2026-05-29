@@ -14,7 +14,14 @@ const router = useRouter()
 const route = useRoute()
 const headerRef = useTemplateRef<HTMLElement>('header')
 
-const isAuthPage = computed(() => route.path === '/login' || route.path === '/register')
+const isStandalonePage = computed(() =>
+  route.path === '/login' ||
+  route.path === '/register' ||
+  route.path === '/unauthorized' ||
+  route.path === '/forbidden' ||
+  route.path === '/not-found' ||
+  route.name === 'slug'
+)
 const isAuthStateReady = computed(() => isRestored.value && !isRestoring.value)
 const isAdmin = computed(() => user.value?.role === 'ADMIN' || user.value?.role === 'SUPER_ADMIN')
 const mobileNavClass = computed(() => isAdmin.value ? 'grid-cols-4' : 'grid-cols-3')
@@ -71,7 +78,7 @@ onMounted(() => {
       </NuxtLink>
 
       <nav
-        v-if="!isAuthPage"
+        v-if="!isStandalonePage"
         class="hidden items-center rounded-[14px] border border-line bg-milk/38 p-1 shadow-soft backdrop-blur md:flex"
       >
         <NuxtLink
@@ -109,7 +116,7 @@ onMounted(() => {
         </NuxtLink>
       </nav>
 
-      <div v-if="!isAuthPage" class="flex min-w-0 items-center gap-2 sm:gap-3">
+      <div v-if="!isStandalonePage" class="flex min-w-0 items-center gap-2 sm:gap-3">
         <NotificationCenter v-if="user" />
         <div class="hidden text-right sm:block">
           <p class="text-sm font-bold text-ink">{{ displayLogin }}</p>
@@ -133,7 +140,7 @@ onMounted(() => {
     </div>
 
     <nav
-      v-if="!isAuthPage"
+      v-if="!isStandalonePage"
       class="grid border-t border-line bg-paper/82 px-3 py-2 backdrop-blur-xl md:hidden"
       :class="mobileNavClass"
     >

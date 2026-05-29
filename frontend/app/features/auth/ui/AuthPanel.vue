@@ -38,6 +38,11 @@ const subtitle = computed(() =>
     ? 'Регистрация создаёт обычного пользователя. Админ-доступ выдаётся отдельно.'
     : 'Используйте почту, логин или вход через подключённые сервисы.'
 )
+const redirectTarget = computed(() =>
+  typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/')
+    ? route.query.redirect
+    : '/'
+)
 
 const socialProviders: Array<{ id: OAuthProvider; label: string; mark: string }> = [
   { id: 'google', label: 'Google', mark: 'G' },
@@ -83,7 +88,7 @@ async function submitCredentials() {
         confirmPassword: confirmPassword.value,
         inviteToken: inviteCode.value || undefined
       })
-      router.replace('/')
+      router.replace(redirectTarget.value)
       return
     }
 
@@ -91,7 +96,7 @@ async function submitCredentials() {
       loginOrEmail: loginOrEmail.value,
       password: password.value
     })
-    router.replace('/')
+    router.replace(redirectTarget.value)
   } catch (error) {
     formError.value = error instanceof Error ? error.message : 'Ошибка авторизации'
   }

@@ -27,6 +27,12 @@ export async function fetchAnalysis(options: ApiClientOptions, id: string) {
   return await authFetch<AnalysisDetails>(`${options.apiBase}/api/analyses/${id}`)
 }
 
+export async function exportAnalysisPdf(options: ApiClientOptions, id: string) {
+  return await authFetch<Blob>(`${options.apiBase}/api/analyses/${id}/export/pdf`, {
+    responseType: 'blob'
+  })
+}
+
 export async function retryAnalysis(options: ApiClientOptions, id: string) {
   return await authFetch<AnalysisJobResponse>(`${options.apiBase}/api/analyses/${id}/retry`, {
     method: 'POST',
