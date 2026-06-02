@@ -648,20 +648,20 @@ watch(
                     class="mt-3 rounded-[12px] border border-line bg-white/52 p-3"
                   >
                     <p class="text-sm font-black text-ink">
-                      {{ item.rewriteSuggestions[selectedSuggestionIndex(item.originalIndex, item.rewriteSuggestions.length)].goal }}
+                      {{ item.rewriteSuggestions[selectedSuggestionIndex(item.originalIndex, item.rewriteSuggestions.length)]?.goal ?? '' }}
                     </p>
                     <dl class="suggestion-detail mt-2 grid gap-2 text-xs leading-5 text-muted">
                       <div>
                         <dt class="font-black uppercase tracking-[0.12em] text-steel">Что изменить</dt>
-                        <dd class="mt-1 text-ink">{{ item.rewriteSuggestions[selectedSuggestionIndex(item.originalIndex, item.rewriteSuggestions.length)].after }}</dd>
+                        <dd class="mt-1 text-ink">{{ item.rewriteSuggestions[selectedSuggestionIndex(item.originalIndex, item.rewriteSuggestions.length)]?.after ?? '' }}</dd>
                       </div>
-                      <div v-if="item.rewriteSuggestions[selectedSuggestionIndex(item.originalIndex, item.rewriteSuggestions.length)].rationale">
+                      <div v-if="item.rewriteSuggestions[selectedSuggestionIndex(item.originalIndex, item.rewriteSuggestions.length)]?.rationale">
                         <dt class="font-black uppercase tracking-[0.12em] text-steel">Почему</dt>
-                        <dd class="mt-1">{{ item.rewriteSuggestions[selectedSuggestionIndex(item.originalIndex, item.rewriteSuggestions.length)].rationale }}</dd>
+                        <dd class="mt-1">{{ item.rewriteSuggestions[selectedSuggestionIndex(item.originalIndex, item.rewriteSuggestions.length)]?.rationale ?? '' }}</dd>
                       </div>
                       <div>
                         <dt class="font-black uppercase tracking-[0.12em] text-steel">Эффект</dt>
-                        <dd class="mt-1">{{ item.rewriteSuggestions[selectedSuggestionIndex(item.originalIndex, item.rewriteSuggestions.length)].expected_effect }}</dd>
+                        <dd class="mt-1">{{ item.rewriteSuggestions[selectedSuggestionIndex(item.originalIndex, item.rewriteSuggestions.length)]?.expected_effect ?? '' }}</dd>
                       </div>
                     </dl>
                   </section>

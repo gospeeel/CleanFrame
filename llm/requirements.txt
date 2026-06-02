@@ -37,4 +37,6 @@ setuptools>=70.0.0,<81.0.0
 tqdm>=4.60.0
 requests>=2.25.0
 urllib3>=1.26.0
+huggingface_hub>=0.26.0
+hf-xet>=1.1.0
 sentry-sdk>=2.0.0,<3.0.0

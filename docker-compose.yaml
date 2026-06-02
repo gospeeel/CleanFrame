@@ -29,6 +29,53 @@ services:
       timeout: 5s
       retries: 5
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: clean-frame-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: clean-frame-ollama-pull
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: qwen3:1.7b
+    command:
+      - sh
+      - -lc
+      - |
+        ollama pull "$${OLLAMA_MODEL}"
+    volumes:
+      - ollama_data:/root/.ollama
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  rubert-model-pull:
+    container_name: clean-frame-rubert-model-pull
+    build:
+      context: ./llm
+    env_file:
+      - path: ./llm/.env
+        required: false
+    environment:
+      HF_RUBERT_REPO_ID: gospeeel/ruBERT-cleanframe
+      HF_RUBERT_REVISION: main
+      RUBERT_MODEL_DIR: /models/trained_model
+    command: ["python", "-m", "llm.tools.model_download"]
+    volumes:
+      - rubert_model:/models/trained_model
+    restart: "no"
+
   llm:
     container_name: clean-frame-llm
     build:
@@ -43,7 +90,7 @@ services:
       RUBERT_BATCH_SIZE: "16"
       LLM_PRELOAD_MODEL: "true"
       LLM_RECOMMENDATIONS_ENABLED: "true"
-      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen3:1.7b
       OLLAMA_TIMEOUT_SECONDS: "30"
       OLLAMA_THINK: "false"
@@ -67,7 +114,7 @@ services:
       LLM_RECOMMENDATION_EXAMPLES_PATH: /datasets/real_text_pseudo/recommendations/train.jsonl
       LLM_RECOMMENDATION_EXAMPLES_LIMIT: "1"
     volumes:
-      - ./llm/trained_model:/models/trained_model:ro
+      - rubert_model:/models/trained_model:ro
       - ./llm/datasets/silver/real_text_pseudo:/datasets/real_text_pseudo:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -76,6 +123,11 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
+    depends_on:
+      ollama-pull:
+        condition: service_completed_successfully
+      rubert-model-pull:
+        condition: service_completed_successfully
 
   backend:
     container_name: clean-frame-backend
@@ -104,6 +156,8 @@ services:
     volumes:
       - analysis_uploads:/service/uploads/analysis
     depends_on:
+      ollama-pull:
+        condition: service_completed_successfully
       backend-seed:
         condition: service_completed_successfully
       redis:
@@ -224,6 +278,8 @@ services:
     volumes:
       - analysis_uploads:/service/uploads/analysis
     depends_on:
+      ollama-pull:
+        condition: service_completed_successfully
       backend-seed:
         condition: service_completed_successfully
       redis:
@@ -249,3 +305,5 @@ services:
 volumes:
   postgres_data:
   analysis_uploads:
+  ollama_data:
+  rubert_model:
