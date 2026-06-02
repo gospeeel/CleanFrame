@@ -11,23 +11,30 @@ if (dsn) {
     release: process.env.APP_VERSION,
     tracesSampleRate: Number(process.env.GLITCHTIP_TRACES_SAMPLE_RATE ?? process.env.SENTRY_TRACES_SAMPLE_RATE ?? '0.1'),
     beforeSend(event) {
-      if (event.request?.headers) {
-        delete event.request.headers.authorization
-        delete event.request.headers.cookie
-      }
-      if (event.request) {
-        delete event.request.data
-        delete event.request.cookies
-      }
-      event.contexts = scrubObject(event.contexts) as typeof event.contexts
-      event.extra = scrubObject(event.extra) as typeof event.extra
-
-      return event
+      return scrubSentryEvent(event)
     }
   })
 }
 
-function scrubObject(value: unknown): unknown {
+export function scrubSentryEvent<T extends {
+  request?: { headers?: Record<string, unknown>; data?: unknown; cookies?: unknown }
+  contexts?: unknown
+  extra?: unknown
+}>(event: T): T {
+  if (event.request?.headers) {
+    delete event.request.headers.authorization
+    delete event.request.headers.cookie
+  }
+  if (event.request) {
+    delete event.request.data
+    delete event.request.cookies
+  }
+  event.contexts = scrubObject(event.contexts) as T['contexts']
+  event.extra = scrubObject(event.extra) as T['extra']
+  return event
+}
+
+export function scrubObject(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map((item) => scrubObject(item))
   }

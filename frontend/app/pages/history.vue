@@ -9,23 +9,25 @@ const rootRef = useTemplateRef<HTMLElement>('root')
 const historyQuery = useAnalysisListQuery()
 
 function formatAnalysisResult(analysis: AnalysisListItem) {
+  const target = analysis.targetRating ? `Цель: ${analysis.targetRating}` : 'Raw-анализ'
+
   if (analysis.status === 'FAILED') {
-    return 'Анализ завершился ошибкой'
+    return `${target} · Анализ завершился ошибкой`
   }
 
   if (analysis.status === 'DEAD_LETTER') {
-    return 'Анализ не прошёл после повторных попыток'
+    return `${target} · Анализ не прошёл после повторных попыток`
   }
 
   if (analysis.status === 'CANCELLED') {
-    return 'Анализ отменён'
+    return `${target} · Анализ отменён`
   }
 
   if (analysis.status === 'QUEUED' || analysis.status === 'PROCESSING') {
-    return 'Анализ выполняется'
+    return `${target} · Анализ выполняется`
   }
 
-  return `Возрастной рейтинг: ${analysis.maxRating ?? 'нет данных'} · рисков: ${analysis.riskCount}`
+  return `${target} · Возрастной рейтинг: ${analysis.maxRating ?? 'нет данных'} · рисков: ${analysis.riskCount}`
 }
 
 const formattedHistory = computed(() =>

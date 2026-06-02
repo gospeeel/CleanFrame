@@ -83,6 +83,7 @@ def evaluate(path: Path = DEFAULT_DATASET, mode: str = "rules") -> dict:
         "rating_accuracy": _accuracy(results, "rating_ok"),
         "evidence_accuracy": _accuracy(results, "evidence_ok"),
         "risk_detection_accuracy": _accuracy(results, "risk_ok"),
+        "items": results,
         "failures": failed,
     }
 
@@ -111,6 +112,7 @@ def _evaluate_pipeline_row(row: dict) -> dict:
             os.environ["LLM_RECOMMENDATIONS_ENABLED"] = previous_llm_enabled
 
     scenes = result.get("все_подозрительные_сцены") or result.get("обработанные_сцены") or []
+    metadata = result.get("metadata", {}) if isinstance(result, dict) else {}
     if not scenes:
         return {
             "risk_detected": False,
@@ -118,6 +120,10 @@ def _evaluate_pipeline_row(row: dict) -> dict:
             "secondary_categories": [],
             "rating": "0+",
             "matched_terms": {},
+            "level": 0,
+            "confidence": {},
+            "evidence_count": 0,
+            "aggregation_reason": metadata.get("rating_aggregation", {}).get("reason"),
         }
 
     first = scenes[0]
@@ -127,6 +133,10 @@ def _evaluate_pipeline_row(row: dict) -> dict:
         "secondary_categories": first.get("secondary_categories", []),
         "rating": first.get("rating") or first.get("рейтинг"),
         "matched_terms": first.get("evidence_meta", {}).get("matched_terms", {}),
+        "level": first.get("level") if first.get("level") is not None else first.get("СѓСЂРѕРІРµРЅСЊ"),
+        "confidence": first.get("confidence", {}),
+        "evidence_count": len(first.get("evidence") or []),
+        "aggregation_reason": metadata.get("rating_aggregation", {}).get("reason"),
     }
 
 

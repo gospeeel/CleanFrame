@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict'
+import * as assert from 'node:assert/strict'
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common'
 import { AnalysisStatus, NotificationType } from '@prisma/client'
 import { AnalysesService } from '../src/analyses/analyses.service'
@@ -32,12 +32,12 @@ async function testCreateEnqueuesQueuedAnalysis() {
     }
   }
 
-  const service = new AnalysesService(prisma as any, fileStorage as any, queue as any, {} as any)
+  const service = new AnalysesService(prisma as any, fileStorage as any, queue as any, {} as any, auditLog() as any)
   const result = await service.create('user-1', uploadFile(), 'request-1')
 
   assert.equal(result.id, 'analysis-1')
   assert.equal(result.status, AnalysisStatus.QUEUED)
-  assert.deepEqual(calls, ['create:QUEUED', 'update:job-1'])
+  assert.deepEqual(calls, ['create:QUEUED', 'update:undefined', 'update:job-1'])
 }
 
 async function testRetryAndCancelRequireOwnedAnalysis() {
@@ -88,7 +88,7 @@ async function testRetryAndCancelRequireOwnedAnalysis() {
   const notificationsService = {
     create: async (input: any) => notifications.push(input)
   }
-  const service = new AnalysesService(prisma as any, fileStorage as any, queue as any, notificationsService as any)
+  const service = new AnalysesService(prisma as any, fileStorage as any, queue as any, notificationsService as any, auditLog() as any)
 
   const retry = await service.retry('user-1', 'owned-failed', 'request-retry')
   assert.equal(retry.status, AnalysisStatus.QUEUED)
@@ -96,13 +96,14 @@ async function testRetryAndCancelRequireOwnedAnalysis() {
 
   const cancelled = await service.cancel('user-1', 'owned-queued')
   assert.equal(cancelled.status, AnalysisStatus.CANCELLED)
+  assert.equal(records.get('owned-queued').sourceFilePath, null)
   assert.equal(notifications[0].type, NotificationType.ANALYSIS_CANCELLED)
 
   await assert.rejects(() => service.retry('user-2', 'owned-failed'), /Анализ не найден/)
 }
 
 async function testRetryPolicySeparatesValidationAndTransientErrors() {
-  const processor = new AnalysisProcessorService({} as any, {} as any, {} as any, {} as any)
+  const processor = new AnalysisProcessorService({} as any, {} as any, {} as any, {} as any, auditLog() as any)
 
   assert.equal(processor.isRetryableError(new BadRequestException('bad file')), false)
   assert.equal(processor.isRetryableError(new ServiceUnavailableException('llm unavailable')), true)
@@ -147,7 +148,7 @@ async function testRetentionCleanupRemovesExpiredTerminalFiles() {
   }
   const service = new AnalysisRetentionService(prisma as any, {
     remove: async (filePath: string) => removed.push(filePath)
-  } as any)
+  } as any, auditLog() as any)
 
   const result = await service.cleanupExpiredSourceFiles(now)
 
@@ -156,12 +157,68 @@ async function testRetentionCleanupRemovesExpiredTerminalFiles() {
   assert.deepEqual(updates, [{ where: { id: 'failed-old' }, data: { sourceFilePath: null } }])
 }
 
+function auditLog() {
+  return {
+    record: async () => undefined
+  }
+}
+
+async function testAdminOpsMasksPrivateFieldsInPrivacyMode() {
+  const previousPrivacyMode = process.env.PRIVACY_MODE
+  process.env.PRIVACY_MODE = 'true'
+  try {
+    const analysis = analysisRecord({
+      id: '11111111-2222-3333-4444-555555555555',
+      fileName: 'Аватар.txt',
+      status: AnalysisStatus.FAILED,
+      attempts: 1,
+      user: {
+        id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        login: 'admin',
+        email: 'admin@example.com'
+      }
+    })
+    const prisma = {
+      analysis: {
+        count: async () => 1,
+        groupBy: async () => [{ status: AnalysisStatus.FAILED, _count: { _all: 1 } }],
+        findMany: async ({ include }: any) => include ? [analysis] : []
+      }
+    }
+    const queue = {
+      getStatus: async () => ({
+        waiting: 0,
+        active: 0,
+        delayed: 0,
+        failed: 0,
+        completed: 0,
+        concurrency: 1,
+        utilizationPercent: 0
+      })
+    }
+    const service = new AnalysesService(prisma as any, {} as any, queue as any, {} as any, auditLog() as any)
+
+    const summary = await service.adminOpsSummary()
+
+    assert.equal(summary.items[0].fileName, 'Файл #11111111')
+    assert.equal(summary.items[0].userLogin, 'Пользователь #aaaaaaaa')
+    assert.equal(summary.items[0].userEmail, '[filtered]')
+  } finally {
+    if (previousPrivacyMode === undefined) {
+      delete process.env.PRIVACY_MODE
+    } else {
+      process.env.PRIVACY_MODE = previousPrivacyMode
+    }
+  }
+}
+
 async function main() {
   await testCreateEnqueuesQueuedAnalysis()
   await testRetryAndCancelRequireOwnedAnalysis()
   await testRetryPolicySeparatesValidationAndTransientErrors()
   await testLongRunningNotificationCreatedOnce()
   await testRetentionCleanupRemovesExpiredTerminalFiles()
+  await testAdminOpsMasksPrivateFieldsInPrivacyMode()
   console.log('analysis workflow verification passed')
 }
 

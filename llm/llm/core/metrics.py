@@ -20,7 +20,7 @@ def record_analysis_completed(suspicious_count: int, duration_seconds: float) ->
 def record_fallback(reason: str | None) -> None:
     with _lock:
         _counters["fallback_total"] += 1
-        _fallback_reasons[reason or "unknown"] += 1
+        _fallback_reasons[_public_fallback_reason(reason)] += 1
 
 
 def record_error(kind: str) -> None:
@@ -55,3 +55,24 @@ def _summary(values: list[float]) -> dict[str, float | int]:
         "avg": round(total / len(values), 3),
         "max": round(max(values), 3),
     }
+
+
+def _public_fallback_reason(reason: str | None) -> str:
+    if not reason:
+        return "unknown"
+    lowered = reason.lower()
+    if "production budget" in lowered or "time budget" in lowered:
+        return "LLM recommendation time budget exceeded"
+    if "timed out" in lowered or "timeout" in lowered or "read timed out" in lowered:
+        return "LLM recommendation timed out"
+    if "connection" in lowered or "unavailable" in lowered or "not ready" in lowered:
+        return "LLM service unavailable"
+    if "missing item" in lowered:
+        return "LLM batch response missing item"
+    if "unterminated string" in lowered or "json" in lowered:
+        return "LLM recommendation returned invalid JSON"
+    if "self-check" in lowered or "self check" in lowered:
+        return "LLM recommendation failed self-check"
+    if "disabled" in lowered:
+        return "LLM recommendations disabled"
+    return reason[:160]

@@ -10,6 +10,7 @@ from llm.paths import DEFAULT_MODEL_DIR, SERVICE_ROOT
 
 
 DEFAULT_REGISTRY_PATH = Path(os.getenv("MODEL_REGISTRY_PATH", SERVICE_ROOT / "model_registry.json"))
+DEFAULT_MODEL_AUDIT_PATH = Path(os.getenv("MODEL_REGISTRY_AUDIT_PATH", SERVICE_ROOT / "reports" / "model_registry_audit.jsonl"))
 
 
 def default_registry(default_rubert_dir: Path = DEFAULT_MODEL_DIR) -> dict[str, Any]:
@@ -68,11 +69,18 @@ def register_model(role: str, metadata: dict[str, Any], path: Path = DEFAULT_REG
     registry = load_model_registry(path)
     active = registry.setdefault("active", {})
     previous = registry.setdefault("previous", {})
+    previous_active = active.get(role)
     if role in active:
         previous[role] = active[role]
     metadata.setdefault("created_at", datetime.now(timezone.utc).isoformat())
     active[role] = metadata
     save_model_registry(registry, path)
+    append_model_audit_event(
+        action="model.switched",
+        role=role,
+        previous=previous_active,
+        current=metadata,
+    )
     return registry
 
 
@@ -82,6 +90,32 @@ def rollback_model(role: str, path: Path = DEFAULT_REGISTRY_PATH) -> dict[str, A
     previous = registry.setdefault("previous", {})
     if role not in previous:
         raise ValueError(f"No previous model registered for role: {role}")
+    previous_active = active.get(role)
     active[role], previous[role] = previous[role], active.get(role)
     save_model_registry(registry, path)
+    append_model_audit_event(
+        action="model.rolled_back",
+        role=role,
+        previous=previous_active,
+        current=active.get(role),
+    )
     return registry
+
+
+def append_model_audit_event(
+    action: str,
+    role: str,
+    previous: Any,
+    current: Any,
+    path: Path = DEFAULT_MODEL_AUDIT_PATH,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    event = {
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "action": action,
+        "role": role,
+        "previous": previous if isinstance(previous, dict) else None,
+        "current": current if isinstance(current, dict) else None,
+    }
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(event, ensure_ascii=False) + "\n")

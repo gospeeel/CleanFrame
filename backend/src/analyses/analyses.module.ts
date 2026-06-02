@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { AuditModule } from '../audit/audit.module'
 import { AuthModule } from '../auth/auth.module'
 import { LlmModule } from '../llm/llm.module'
 import { NotificationsModule } from '../notifications/notifications.module'
@@ -12,7 +13,7 @@ import { AnalysesController } from './analyses.controller'
 import { AnalysesService } from './analyses.service'
 
 @Module({
-  imports: [AuthModule, LlmModule, NotificationsModule],
+  imports: [AuditModule, AuthModule, LlmModule, NotificationsModule],
   controllers: [AnalysesController],
   providers: [
     AnalysesService,

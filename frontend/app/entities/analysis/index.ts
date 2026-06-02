@@ -8,6 +8,7 @@ export type {
   AnalysisResponse,
   AnalysisResult,
   AnalysisStatus,
+  AnalysisTargetRating,
   EvidenceItem,
   LlmRecommendation,
   RecommendationSummary,

@@ -3,6 +3,7 @@ import { Analysis, AnalysisStatus, Prisma } from '@prisma/client'
 export interface AnalysisJobResponse {
   id: string
   status: AnalysisStatus
+  targetRating: string | null
 }
 
 export interface AnalysisListItem {
@@ -10,6 +11,7 @@ export interface AnalysisListItem {
   fileName: string
   status: AnalysisStatus
   maxRating: string | null
+  targetRating: string | null
   riskCount: number
   reviewCount: number
   createdAt: Date

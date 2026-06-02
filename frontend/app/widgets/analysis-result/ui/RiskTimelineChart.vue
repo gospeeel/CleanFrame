@@ -48,6 +48,22 @@ const trendPoints = computed(() => {
   ]
 })
 
+const xBounds = computed(() => {
+  const source = sortedPoints.value
+  const first = source[0]
+  const last = source[source.length - 1]
+  if (!first || !last) {
+    return { min: 0, max: 1 }
+  }
+
+  const span = Math.max(1, last.x - first.x)
+  const padding = Math.max(1, span * 0.04)
+  return {
+    min: first.x - padding,
+    max: last.x + padding
+  }
+})
+
 async function ensureChart() {
   if (chartCtor.value) {
     return chartCtor.value
@@ -120,15 +136,17 @@ async function renderChart() {
         },
         layout: {
           padding: {
-            top: 8,
-            right: 14,
-            bottom: 0,
-            left: 4
+            top: 18,
+            right: 22,
+            bottom: 8,
+            left: 8
           }
         },
         scales: {
           x: {
             type: 'linear',
+            min: xBounds.value.min,
+            max: xBounds.value.max,
             grid: {
               color: 'rgba(50, 58, 54, 0.08)'
             },
@@ -148,8 +166,8 @@ async function renderChart() {
             }
           },
           y: {
-            min: 0,
-            max: 4,
+            min: -0.15,
+            max: 4.25,
             grid: {
               color: 'rgba(50, 58, 54, 0.1)'
             },
@@ -165,7 +183,8 @@ async function renderChart() {
             ticks: {
               stepSize: 1,
               color: '#6d7771',
-              font: { size: 11, weight: 700 }
+              font: { size: 11, weight: 700 },
+              callback: (value: string | number) => Number.isInteger(Number(value)) ? value : ''
             }
           }
         },

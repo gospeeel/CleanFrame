@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, nextTick, shallowRef } from 'vue'
 import { useRuntimeConfig } from '#app'
 import { useAuthStore } from '~/entities/user'
-import type { AnalysisDetails } from '~/entities/analysis'
+import type { AnalysisDetails, AnalysisTargetRating } from '~/entities/analysis'
 import {
   cancelAnalysis,
   createAnalysis,
@@ -64,7 +64,8 @@ export function useAnalysisMutations() {
   const clientOptions = useAnalysisClientOptions()
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => createAnalysis(clientOptions.value, file),
+    mutationFn: ({ file, targetRating }: { file: File; targetRating: AnalysisTargetRating }) =>
+      createAnalysis(clientOptions.value, file, targetRating),
     onSuccess: (job) => {
       queryClient.invalidateQueries({ queryKey: analysisKeys.list() })
       queryClient.invalidateQueries({ queryKey: analysisKeys.detail(job.id) })
@@ -99,9 +100,9 @@ export function useActiveAnalysisQuery() {
   const detailsQuery = useAnalysisDetailsQuery(() => activeAnalysisId.value)
   const mutations = useAnalysisMutations()
 
-  async function submit(file: File) {
+  async function submit(file: File, targetRating: AnalysisTargetRating = 'raw') {
     activeAnalysisId.value = ''
-    const job = await mutations.uploadMutation.mutateAsync(file)
+    const job = await mutations.uploadMutation.mutateAsync({ file, targetRating })
     activeAnalysisId.value = job.id
     await nextTick()
     await detailsQuery.refetch()
@@ -114,11 +115,16 @@ export function useActiveAnalysisQuery() {
     await detailsQuery.refetch()
   }
 
+  function reset() {
+    activeAnalysisId.value = ''
+  }
+
   return {
     activeAnalysisId,
     detailsQuery,
     submit,
     load,
+    reset,
     ...mutations
   }
 }

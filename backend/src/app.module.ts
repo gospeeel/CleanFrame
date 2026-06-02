@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config'
 import { APP_FILTER } from '@nestjs/core'
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup'
 import { AnalysesModule } from './analyses/analyses.module'
+import { AuditModule } from './audit/audit.module'
 import { AuthModule } from './auth/auth.module'
 import { HealthController, ReadyController } from './health.controller'
 import { LlmModule } from './llm/llm.module'
@@ -16,6 +17,7 @@ import { PrismaModule } from './prisma/prisma.module'
     }),
     SentryModule.forRoot(),
     PrismaModule,
+    AuditModule,
     AuthModule,
     AnalysesModule,
     LlmModule,

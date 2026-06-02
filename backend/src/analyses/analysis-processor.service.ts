@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import * as Sentry from '@sentry/nestjs'
 import { AnalysisStatus, NotificationType, Prisma } from '@prisma/client'
+import { AUDIT_ACTIONS, AuditLogService } from '../audit/audit-log.service'
 import { LlmService } from '../llm/llm.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import { countQueueMetric, distributionQueueMetric } from '../observability/queue-metrics'
@@ -15,7 +16,8 @@ export class AnalysisProcessorService {
     private readonly prisma: PrismaService,
     private readonly llmService: LlmService,
     private readonly fileStorage: AnalysisFileStorageService,
-    private readonly notifications: NotificationsService
+    private readonly notifications: NotificationsService,
+    private readonly auditLog: AuditLogService
   ) {}
 
   async process(analysisId: string, workerId: string, queueJobId?: string, requestId?: string) {
@@ -67,7 +69,8 @@ export class AnalysisProcessorService {
         filePath: analysis.sourceFilePath,
         mimeType: this.mimeTypeFromFileName(analysis.fileName),
         analysisId,
-        requestId
+        requestId,
+        targetRating: analysis.targetRating
       })
       const result = this.normalizeAnalysisResult(response?.result as Prisma.JsonValue)
       const stats = this.extractStats(result)
@@ -82,6 +85,7 @@ export class AnalysisProcessorService {
           reviewCount: stats.reviewCount,
           processingTime: stats.processingTime,
           resultJson: result === null ? Prisma.JsonNull : result,
+          sourceFilePath: null,
           completedAt: new Date()
         }
       })
@@ -95,6 +99,24 @@ export class AnalysisProcessorService {
         workerId
       })
       await this.fileStorage.remove(analysis.sourceFilePath)
+      await this.auditLog.record({
+        action: AUDIT_ACTIONS.ANALYSIS_DONE,
+        userId: analysis.userId,
+        analysisId,
+        metadata: {
+          queueJobId: queueJobId ?? analysis.queueJobId,
+          maxRating: stats.maxRating,
+          riskCount: stats.riskCount,
+          reviewCount: stats.reviewCount,
+          targetRating: analysis.targetRating
+        }
+      })
+      await this.auditLog.record({
+        action: AUDIT_ACTIONS.SOURCE_FILE_REMOVED,
+        userId: analysis.userId,
+        analysisId,
+        metadata: { reason: 'done' }
+      })
       await this.notifications.create({
         userId: analysis.userId,
         type: NotificationType.ANALYSIS_DONE,
@@ -150,6 +172,19 @@ export class AnalysisProcessorService {
         errorCode,
         errorMessage: error instanceof Error ? error.message : 'Не удалось выполнить анализ',
         completedAt: new Date()
+      }
+    })
+    await this.auditLog.record({
+      action: status === AnalysisStatus.DEAD_LETTER ? AUDIT_ACTIONS.ANALYSIS_DEAD_LETTER : AUDIT_ACTIONS.ANALYSIS_FAILED,
+      userId: analysis.userId,
+      analysisId,
+      metadata: {
+        queueJobId: context.queueJobId ?? analysis.queueJobId,
+        workerId: context.workerId ?? analysis.workerId,
+        errorCode,
+        attemptsMade: context.attemptsMade,
+        maxAttempts: context.maxAttempts,
+        sourceFileRetained: Boolean(analysis.sourceFilePath)
       }
     })
     const processingDurationMs = analysis.startedAt

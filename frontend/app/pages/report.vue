@@ -3,6 +3,7 @@ import { computed, onMounted, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from '#app'
 import { storeToRefs } from 'pinia'
 import { useAnalysisUiStore } from '~/entities/analysis'
+import type { AnalysisTargetRating } from '~/entities/analysis'
 import { UploadPanel, useAnalysisClientOptions, useScriptAnalysis } from '~/features/script-analysis'
 import { exportAnalysisPdf } from '~/shared/api/analysisApi'
 import { AnalysisResult } from '~/widgets/analysis-result'
@@ -18,6 +19,8 @@ const exportError = shallowRef('')
 
 const result = computed(() => analysis.result.value)
 const currentAnalysisId = computed(() => analysis.activeAnalysisId.value || analysis.data.value?.id || '')
+const currentFileName = computed(() => analysis.data.value?.fileName || selectedFileName.value || 'Файл сценария')
+const currentTargetLabel = computed(() => analysis.data.value?.targetRating ? `Цель: ${analysis.data.value.targetRating}` : 'Raw-анализ')
 const exportFileName = computed(() => `clean-frame-report-${currentAnalysisId.value.slice(0, 8) || 'analysis'}.pdf`)
 const errorMessage = computed(() => {
   if (analysis.data.value?.status === 'FAILED' || analysis.data.value?.status === 'DEAD_LETTER') {
@@ -36,11 +39,18 @@ const errorMessage = computed(() => {
 
   return error instanceof Error ? error.message : 'Не удалось выполнить анализ'
 })
+const shouldShowUpload = computed(() => !analysis.isPending.value && !result.value && !errorMessage.value)
 
-function handleSubmit(file: File) {
+function handleSubmit(file: File, targetRating: AnalysisTargetRating) {
   uiStore.setSelectedFile(file)
   uiStore.showResult()
-  void analysis.submit(file)
+  void analysis.submit(file, targetRating)
+}
+
+function handleNewAnalysis() {
+  uiStore.reset()
+  analysis.reset()
+  void router.replace({ path: '/report' })
 }
 
 async function handlePdfExport() {
@@ -101,26 +111,44 @@ watch(analysis.activeAnalysisId, (id) => {
 
 <template>
   <section class="page-shell">
-    <div class="grid gap-6">
-      <UploadPanel v-model:selected-file-name="selectedFileName" @submit="handleSubmit" />
+    <div id="report-top" class="grid gap-6">
+      <UploadPanel
+        v-if="shouldShowUpload"
+        v-model:selected-file-name="selectedFileName"
+        @submit="handleSubmit"
+      />
 
       <div
         v-if="result && currentAnalysisId"
         class="report-actions glass-panel flex flex-wrap items-center justify-between gap-3 px-4 py-3"
       >
-        <div>
-          <p class="text-xs font-black uppercase tracking-[0.2em] text-steel">Экспорт</p>
-          <p class="mt-1 text-sm font-bold text-muted">Сервер сформирует стилизованный PDF и скачает файл.</p>
+        <div class="min-w-0">
+          <p class="text-xs font-black uppercase tracking-[0.2em] text-steel">Готовый отчёт</p>
+          <p class="mt-1 max-w-2xl break-words text-sm font-black text-ink">
+            {{ currentFileName }}
+          </p>
+          <p class="mt-1 max-w-2xl text-xs font-bold text-muted">
+            {{ currentTargetLabel }} · Анализ завершён. Можно скачать PDF или начать новый анализ.
+          </p>
           <p v-if="exportError" class="mt-1 text-xs font-bold text-signal">{{ exportError }}</p>
         </div>
-        <button
-          class="report-print-button"
-          type="button"
-          :disabled="isExportingPdf"
-          @click="handlePdfExport"
-        >
-          {{ isExportingPdf ? 'Готовим PDF' : 'Скачать PDF' }}
-        </button>
+        <div class="flex flex-wrap gap-2">
+          <button
+            class="report-secondary-button"
+            type="button"
+            @click="handleNewAnalysis"
+          >
+            Новый анализ
+          </button>
+          <button
+            class="report-print-button"
+            type="button"
+            :disabled="isExportingPdf"
+            @click="handlePdfExport"
+          >
+            {{ isExportingPdf ? 'Готовим PDF' : 'Скачать PDF' }}
+          </button>
+        </div>
       </div>
 
       <AnalysisResult
@@ -165,5 +193,28 @@ watch(analysis.activeAnalysisId, (id) => {
   cursor: wait;
   opacity: 0.68;
   transform: none;
+}
+
+.report-secondary-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(33, 43, 41, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 250, 241, 0.82);
+  color: var(--color-steel);
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 0 20px;
+  text-transform: uppercase;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.report-secondary-button:hover {
+  border-color: rgba(82, 111, 122, 0.42);
+  background: white;
+  transform: translateY(-1px);
 }
 </style>

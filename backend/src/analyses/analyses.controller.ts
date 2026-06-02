@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Controller,
   Get,
+  Body,
   Param,
   Post,
   Req,
@@ -41,9 +42,14 @@ export class AnalysesController {
       }
     })
   )
-  create(@CurrentUser() user: JwtUser, @UploadedFile() file: Express.Multer.File | undefined, @Req() request: Request) {
+  create(
+    @CurrentUser() user: JwtUser,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body('targetRating') targetRating: string | undefined,
+    @Req() request: Request
+  ) {
     this.assertFile(file)
-    return this.analysesService.create(user.sub, file, this.requestId(request))
+    return this.analysesService.create(user.sub, file, this.requestId(request), targetRating)
   }
 
   @Get()

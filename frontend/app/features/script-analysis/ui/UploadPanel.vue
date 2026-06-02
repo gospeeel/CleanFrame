@@ -1,17 +1,27 @@
 <script setup lang="ts">
 import anime from 'animejs'
 import { computed, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
+import type { AnalysisTargetRating } from '~/entities/analysis'
 import { createSmoothTimeline, prefersReducedMotion, smoothMotion } from '~/shared/lib/motion'
 
 const selectedFileName = defineModel<string>('selectedFileName', { default: '' })
 
 const emit = defineEmits<{
-  submit: [file: File]
+  submit: [file: File, targetRating: AnalysisTargetRating]
 }>()
 
 const rootRef = useTemplateRef<HTMLElement>('root')
 const fileInputRef = useTemplateRef<HTMLInputElement>('fileInput')
 const selectedFile = shallowRef<File | null>(null)
+const targetRating = shallowRef<AnalysisTargetRating>('raw')
+const isDragOver = shallowRef(false)
+const targetOptions: Array<{ value: AnalysisTargetRating; label: string; hint: string }> = [
+  { value: 'raw', label: 'Raw', hint: 'Все риски без цели снижения' },
+  { value: '6+', label: '6+', hint: 'Самый строгий порог' },
+  { value: '12+', label: '12+', hint: 'Массовый семейный прокат' },
+  { value: '16+', label: '16+', hint: 'Меньше правок для взрослой драмы' },
+  { value: '18+', label: '18+', hint: 'Только критичные превышения' }
+]
 
 const canSubmit = computed(() => selectedFile.value !== null)
 const fileMeta = computed(() => {
@@ -30,8 +40,43 @@ function handleFileChange(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0] ?? null
 
+  setSelectedFile(file)
+}
+
+function setSelectedFile(file: File | null) {
   selectedFile.value = file
   selectedFileName.value = file?.name ?? ''
+}
+
+function isSupportedFile(file: File) {
+  const name = file.name.toLowerCase()
+  return name.endsWith('.txt') || name.endsWith('.pdf') || name.endsWith('.docx')
+}
+
+function handleDragOver(event: DragEvent) {
+  event.preventDefault()
+  isDragOver.value = true
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'copy'
+  }
+}
+
+function handleDragLeave(event: DragEvent) {
+  if (event.currentTarget === event.target) {
+    isDragOver.value = false
+  }
+}
+
+function handleDrop(event: DragEvent) {
+  event.preventDefault()
+  isDragOver.value = false
+
+  const file = event.dataTransfer?.files?.[0] ?? null
+  if (!file || !isSupportedFile(file)) {
+    return
+  }
+
+  setSelectedFile(file)
 }
 
 function submitFile() {
@@ -39,7 +84,7 @@ function submitFile() {
     return
   }
 
-  emit('submit', selectedFile.value)
+  emit('submit', selectedFile.value, targetRating.value)
 }
 
 function animateSelectPulse() {
@@ -59,6 +104,9 @@ function animateSelectPulse() {
 
 onMounted(() => {
   if (!rootRef.value || prefersReducedMotion()) {
+    rootRef.value?.querySelectorAll('.opacity-0').forEach((element) => {
+      element.classList.remove('opacity-0')
+    })
     return
   }
 
@@ -121,6 +169,26 @@ watch(selectedFile, () => {
 
       <div data-animate class="min-w-0 opacity-0">
         <div data-file-card class="file-card border border-line p-4 shadow-soft transition">
+          <div class="mb-4 rounded-[14px] border border-line bg-paper/58 p-3">
+            <p class="text-xs font-black uppercase tracking-[0.18em] text-steel">Цель анализа</p>
+            <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+              <button
+                v-for="option in targetOptions"
+                :key="option.value"
+                class="target-option min-w-0"
+                :class="targetRating === option.value ? 'target-option-active' : ''"
+                type="button"
+                @click="targetRating = option.value"
+              >
+                <span class="block text-sm font-black">{{ option.label }}</span>
+                <span class="mt-1 block text-[11px] font-bold leading-4">{{ option.hint }}</span>
+              </button>
+            </div>
+            <p class="mt-3 text-xs font-bold leading-5 text-muted">
+              Выберите порог до отправки файла. Raw показывает все найденные риски без цели снижения.
+            </p>
+          </div>
+
           <input
             ref="fileInput"
             class="sr-only"
@@ -131,8 +199,13 @@ watch(selectedFile, () => {
 
           <button
             class="hairline-grid group flex min-h-48 w-full flex-col justify-between rounded-[18px] border border-dashed border-steel/35 bg-milk/55 p-5 text-left transition hover:border-steel hover:bg-white md:min-h-56"
+            :class="isDragOver ? 'border-steel bg-white shadow-soft' : ''"
             type="button"
             @click="selectFile"
+            @dragenter.prevent="isDragOver = true"
+            @dragover="handleDragOver"
+            @dragleave="handleDragLeave"
+            @drop="handleDrop"
           >
             <span class="flex items-center justify-between gap-4">
               <span class="rounded-[10px] border border-line bg-paper/80 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-muted">
@@ -197,5 +270,24 @@ watch(selectedFile, () => {
 
 .process-card {
   padding: 16px;
+}
+
+.target-option {
+  min-height: 70px;
+  border: 1px solid rgba(33, 43, 41, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 250, 241, 0.7);
+  color: var(--color-muted);
+  padding: 8px;
+  text-align: left;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.target-option:hover,
+.target-option-active {
+  border-color: rgba(82, 111, 122, 0.42);
+  background: white;
+  color: var(--color-ink);
+  transform: translateY(-1px);
 }
 </style>

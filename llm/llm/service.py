@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 async def run_analysis(
     file: UploadFile = File(...),
+    target_rating: str | None = None,
     analysis_id: str | None = None,
     request_id: str | None = None,
 ):
@@ -24,6 +25,7 @@ async def run_analysis(
         analysis_id=analysis_id,
         request_id=request_id,
         filename=file.filename,
+        target_rating=target_rating,
     )
     original_name = Path(file.filename or "").name
     extension = Path(original_name).suffix.lower()
@@ -62,6 +64,7 @@ async def run_analysis(
             input_path=save_path,
             analysis_id=analysis_id,
             request_id=request_id,
+            target_rating=target_rating,
         )
     except FileNotFoundError as exc:
         record_error("file_or_model")

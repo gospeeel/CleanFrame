@@ -35,6 +35,7 @@ export class LlmService {
     mimeType: string
     analysisId?: string
     requestId?: string
+    targetRating?: string | null
   }) {
     if (!file.filePath) {
       throw new BadRequestException('Исходный файл анализа недоступен')
@@ -46,7 +47,8 @@ export class LlmService {
       fileName: file.fileName,
       mimeType: file.mimeType,
       analysisId: file.analysisId,
-      requestId: file.requestId
+      requestId: file.requestId,
+      targetRating: file.targetRating
     })
   }
 
@@ -56,12 +58,14 @@ export class LlmService {
     mimeType: string
     analysisId?: string
     requestId?: string
+    targetRating?: string | null
   }) {
     const form = new FormData()
     form.append('file', file.buffer, {
       filename: normalizeUploadFileName(file.fileName),
       contentType: file.mimeType
     })
+    form.append('target_rating', file.targetRating ?? 'raw')
 
     try {
       const response = await axios.post(`${this.llmServiceUrl}/api/analysis/run`, form, {

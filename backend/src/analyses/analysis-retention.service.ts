@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common'
 import { AnalysisStatus } from '@prisma/client'
+import { AUDIT_ACTIONS, AuditLogService } from '../audit/audit-log.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { AnalysisFileStorageService } from './analysis-file-storage.service'
 
@@ -10,7 +11,8 @@ export class AnalysisRetentionService implements OnModuleInit, OnApplicationShut
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly fileStorage: AnalysisFileStorageService
+    private readonly fileStorage: AnalysisFileStorageService,
+    private readonly auditLog: AuditLogService
   ) {}
 
   onModuleInit() {
@@ -53,6 +55,11 @@ export class AnalysisRetentionService implements OnModuleInit, OnApplicationShut
       await this.prisma.analysis.update({
         where: { id: analysis.id },
         data: { sourceFilePath: null }
+      })
+      await this.auditLog.record({
+        action: AUDIT_ACTIONS.SOURCE_FILE_REMOVED,
+        analysisId: analysis.id,
+        metadata: { reason: 'retention_cleanup' }
       })
       removed += 1
     }

@@ -29,6 +29,7 @@ export function useScriptAnalysis() {
     result,
     submit: analysis.submit,
     load: analysis.load,
+    reset: analysis.reset,
     retryMutation: analysis.retryMutation,
     cancelMutation: analysis.cancelMutation
   }

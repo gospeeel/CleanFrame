@@ -3,9 +3,12 @@ import anime from 'animejs'
 import { computed, onMounted, useTemplateRef } from 'vue'
 import { useOpsQueries } from '~/features/ops'
 import { createSmoothTimeline, prefersReducedMotion, smoothMotion } from '~/shared/lib/motion'
+import { displayFileName, displayUserIdentity, isPrivacyModeEnabled } from '~/shared/lib/privacy'
 
 const rootRef = useTemplateRef<HTMLElement>('root')
 const { summaryQuery, retryMutation } = useOpsQueries()
+const config = useRuntimeConfig()
+const privacyMode = computed(() => isPrivacyModeEnabled(config.public.privacyMode))
 
 const summary = computed(() => summaryQuery.data.value)
 const statusCards = computed(() => {
@@ -42,6 +45,13 @@ const queueBars = computed(() => {
   }))
 })
 const rows = computed(() => summary.value?.items ?? [])
+const presentedRows = computed(() =>
+  rows.value.map((item) => ({
+    ...item,
+    displayFileName: displayFileName(item.fileName, item.id, privacyMode.value),
+    displayUser: displayUserIdentity(item.userLogin, item.userEmail, item.userId, privacyMode.value)
+  }))
+)
 
 function formatDuration(ms: number | null | undefined) {
   if (ms === null || ms === undefined) {
@@ -200,18 +210,18 @@ onMounted(() => {
           <p class="ops-kicker">Jobs</p>
           <h2>Активные и проблемные анализы</h2>
         </div>
-        <span>{{ rows.length }} записей</span>
+        <span>{{ presentedRows.length }} записей</span>
       </div>
 
       <div v-if="summaryQuery.isPending.value" class="ops-empty">Загружаем очередь...</div>
       <div v-else-if="summaryQuery.isError.value" class="ops-error">Не удалось загрузить ops-данные.</div>
-      <div v-else-if="!rows.length" class="ops-empty">Нет активных, failed или dead-letter задач.</div>
+      <div v-else-if="!presentedRows.length" class="ops-empty">Нет активных, failed или dead-letter задач.</div>
       <div v-else class="ops-rows">
-        <article v-for="item in rows" :key="item.id" class="ops-row">
+        <article v-for="item in presentedRows" :key="item.id" class="ops-row">
           <div class="ops-row-main">
             <span class="ops-status" :data-status="item.status">{{ statusLabel(item.status) }}</span>
-            <NuxtLink class="ops-file" :to="`/report?id=${item.id}`">{{ item.fileName }}</NuxtLink>
-            <small>{{ item.userLogin }} · {{ item.userEmail }}</small>
+            <NuxtLink class="ops-file" :to="`/report?id=${item.id}`">{{ item.displayFileName }}</NuxtLink>
+            <small>{{ item.displayUser }}</small>
           </div>
           <div class="ops-row-meta">
             <span>attempts: {{ item.attempts }}</span>

@@ -1,7 +1,7 @@
 from yargy import rule, or_, Parser
 from yargy.predicates import normalized
 from llm.semantic_expansion import load_expanded_lexicons
-from llm.taxonomy import normalize_category, safe_context_categories, score_curated_terms
+from llm.taxonomy import ambiguous_context_adjustments, normalize_category, safe_context_categories, score_curated_terms
 import json, os, sys, glob
 from typing import Dict, Any
 
@@ -89,7 +89,8 @@ def is_suspicious_scene(text: str) -> dict:
     text = text.lower()
     flags = {category: False for category in RULES}
     curated_scores, matched_terms = score_curated_terms(text)
-    suppressed_categories = safe_context_categories(text)
+    ambiguous_adjustments = ambiguous_context_adjustments(text)
+    suppressed_categories = safe_context_categories(text) | set(ambiguous_adjustments.get("suppress", set()))
 
     for category, parser in parsers.items():
         matches = list(parser.findall(text))
@@ -109,6 +110,13 @@ def is_suspicious_scene(text: str) -> dict:
             normalized_scores[normalized_category] += 1.0
         normalized_scores[normalized_category] += curated_scores.get(normalized_category, 0.0)
         normalized_matches[normalized_category].extend(matched_terms.get(normalized_category, []))
+
+    for category, score in ambiguous_adjustments.get("boosts", {}).items():
+        normalized_category = normalize_category(category)
+        normalized_scores[normalized_category] += float(score)
+    for category, terms in ambiguous_adjustments.get("matches", {}).items():
+        normalized_category = normalize_category(category)
+        normalized_matches[normalized_category].extend(str(term) for term in terms)
 
     normalized_flags = {
         category: score > 0

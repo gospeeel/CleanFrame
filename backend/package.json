@@ -10,6 +10,8 @@
     "start:worker": "node dist/src/worker.js",
     "typecheck": "tsc --noEmit",
     "test:analysis": "tsx scripts/verify-analysis-workflow.ts",
+    "test:e2e-analysis": "tsx scripts/e2e-analysis-smoke.ts",
+    "test:security": "tsx scripts/verify-security.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",

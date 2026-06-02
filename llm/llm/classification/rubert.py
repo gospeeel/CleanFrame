@@ -203,6 +203,95 @@ def predict_text(text: str, model_path, max_len: int = 256, device: str | None =
 
 # --- 3. Функция предсказания ---
 
+def predict_texts_batch(
+    texts: list[str],
+    model_path,
+    max_len: int = 256,
+    device: str | None = None,
+    batch_size: int = 16,
+) -> list[dict]:
+    normalized_texts = [text.strip() for text in texts]
+    if any(not text for text in normalized_texts):
+        raise ValueError("Text for prediction is empty")
+    if not normalized_texts:
+        return []
+
+    model, tokenizer, id_to_category, level_shift, id_to_rating = load_model_and_tokenizer(model_path)
+    runtime_device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+    model.to(runtime_device)
+    model.eval()
+
+    predictions = []
+    effective_batch_size = max(1, int(batch_size))
+    for start in range(0, len(normalized_texts), effective_batch_size):
+        batch_texts = normalized_texts[start:start + effective_batch_size]
+        inputs = tokenizer(
+            batch_texts,
+            truncation=True,
+            padding="max_length",
+            max_length=max_len,
+            return_tensors="pt",
+        )
+        input_ids = inputs["input_ids"].to(runtime_device)
+        attention_mask = inputs["attention_mask"].to(runtime_device)
+
+        with torch.no_grad():
+            cat_logits, lev_logits, rating_logits = model(input_ids=input_ids, attention_mask=attention_mask)
+            cat_probs_batch = F.softmax(cat_logits, dim=1).cpu().numpy()
+            lev_probs_batch = F.softmax(lev_logits, dim=1).cpu().numpy()
+            if rating_logits is not None:
+                rating_probs_batch = F.softmax(rating_logits, dim=1).cpu().numpy()
+            else:
+                rating_probs_batch = [None] * len(batch_texts)
+
+        for cat_probs, lev_probs, rating_probs in zip(cat_probs_batch, lev_probs_batch, rating_probs_batch):
+            cat_pred_id = int(cat_probs.argmax())
+            lev_pred_id = int(lev_probs.argmax())
+            predicted_category = id_to_category.get(str(cat_pred_id)) or id_to_category.get(cat_pred_id) or "unknown"
+            predicted_level = int(lev_pred_id + int(level_shift))
+            if predicted_category == "safe":
+                predicted_level = 0
+
+            category_scores = {}
+            for i, probability in enumerate(cat_probs):
+                category = id_to_category.get(str(i)) or id_to_category.get(i) or f"cat_{i}"
+                category_scores[category] = float(probability)
+
+            level_scores = {}
+            for i, probability in enumerate(lev_probs):
+                level_scores[str(int(i + int(level_shift)))] = float(probability)
+
+            rating_scores = {}
+            if rating_probs is not None:
+                rating_pred_id = int(rating_probs.argmax())
+                predicted_rating = (
+                    id_to_rating.get(str(rating_pred_id))
+                    or id_to_rating.get(rating_pred_id)
+                    or RATING_ORDER[rating_pred_id]
+                )
+                rating_confidence = float(rating_probs[rating_pred_id])
+                for i, probability in enumerate(rating_probs):
+                    rating = id_to_rating.get(str(i)) or id_to_rating.get(i) or RATING_ORDER[i]
+                    rating_scores[rating] = float(probability)
+            else:
+                predicted_rating = calculate_rating(predicted_category, predicted_level)
+                rating_confidence = min(float(cat_probs[cat_pred_id]), float(lev_probs[lev_pred_id]))
+
+            predictions.append({
+                "category": predicted_category,
+                "level": predicted_level,
+                "rating": predicted_rating,
+                "category_confidence": float(cat_probs[cat_pred_id]),
+                "level_confidence": float(lev_probs[lev_pred_id]),
+                "rating_confidence": rating_confidence,
+                "category_scores": category_scores,
+                "level_scores": level_scores,
+                "rating_scores": rating_scores,
+            })
+
+    return predictions
+
+
 def predict(input_json_path, output_json_path, model_path='trained_model', max_len=128):
     """
     Функция для фильтрации и предсказания category и level для подозрительных элементов сценария.

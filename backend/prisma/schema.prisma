@@ -67,6 +67,7 @@ model Analysis {
   userId         String         @map("user_id") @db.Uuid
   fileName       String         @map("file_name") @db.VarChar(255)
   status         AnalysisStatus @default(QUEUED)
+  targetRating   String?        @map("target_rating") @db.VarChar(8)
   maxRating      String?        @map("max_rating") @db.VarChar(8)
   riskCount      Int            @default(0) @map("risk_count")
   reviewCount    Int            @default(0) @map("review_count")
@@ -85,11 +86,27 @@ model Analysis {
   updatedAt      DateTime       @updatedAt @map("updated_at")
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   notifications  Notification[]
+  auditEvents    AuditEvent[]
 
   @@index([userId, createdAt])
   @@index([status])
   @@index([queueJobId])
   @@map("analyses")
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  action     String   @db.VarChar(80)
+  userId     String?  @map("user_id") @db.Uuid
+  analysisId String?  @map("analysis_id") @db.Uuid
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+  analysis   Analysis? @relation(fields: [analysisId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt])
+  @@index([userId, createdAt])
+  @@index([analysisId])
+  @@map("audit_events")
 }
 
 model Notification {

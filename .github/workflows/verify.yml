@@ -25,9 +25,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r llm/requirements.txt
       - name: Verify LLM
-        run: PYTHON_BIN=python ./scripts/verify-llm.sh
+        run: PYTHON_BIN=python bash ./.github/scripts/verify-llm.sh
       - name: Verify V2 architecture wiring
-        run: ./scripts/verify-v2-architecture.sh
+        run: bash ./.github/scripts/verify-v2-architecture.sh
 
   backend:
     runs-on: ubuntu-latest

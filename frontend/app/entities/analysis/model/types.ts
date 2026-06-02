@@ -52,6 +52,10 @@ export interface SuspiciousScene {
   rating?: string
   рейтинг: string
   target_rating?: string
+  analysis_target_rating?: string | null
+  exceeds_target?: boolean
+  target_delta?: number
+  recommendation_skipped_reason?: string | null
   индекс_рейтинга: number
   категория: string
   category_id?: string
@@ -99,10 +103,12 @@ export interface AnalysisResponse {
 }
 
 export type AnalysisStatus = 'QUEUED' | 'PROCESSING' | 'DONE' | 'FAILED' | 'DEAD_LETTER' | 'CANCELLED'
+export type AnalysisTargetRating = 'raw' | '6+' | '12+' | '16+' | '18+'
 
 export interface AnalysisJobResponse {
   id: string
   status: AnalysisStatus
+  targetRating: string | null
 }
 
 export interface AnalysisListItem {
@@ -110,6 +116,7 @@ export interface AnalysisListItem {
   fileName: string
   status: AnalysisStatus
   maxRating: string | null
+  targetRating: string | null
   riskCount: number
   reviewCount: number
   createdAt: string

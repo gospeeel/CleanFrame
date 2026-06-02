@@ -1,4 +1,4 @@
-import type { AnalysisDetails, AnalysisJobResponse, AnalysisListItem } from '~/entities/analysis'
+import type { AnalysisDetails, AnalysisJobResponse, AnalysisListItem, AnalysisTargetRating } from '~/entities/analysis'
 import { authFetch } from './authFetch'
 
 export interface ApiClientOptions {
@@ -6,9 +6,10 @@ export interface ApiClientOptions {
   token: string
 }
 
-export async function createAnalysis(options: ApiClientOptions, file: File) {
+export async function createAnalysis(options: ApiClientOptions, file: File, targetRating: AnalysisTargetRating = 'raw') {
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('targetRating', targetRating)
 
   return await authFetch<AnalysisJobResponse>(`${options.apiBase}/api/analyses`, {
     method: 'POST',

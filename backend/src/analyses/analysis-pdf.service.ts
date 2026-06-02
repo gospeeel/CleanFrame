@@ -22,6 +22,18 @@ const COLORS = {
   white: '#ffffff'
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  violence: 'Насилие',
+  profanity: 'Грубая лексика',
+  substance: 'Алкоголь, табак и вещества',
+  drugs_alcohol: 'Алкоголь, табак и вещества',
+  sexual: 'Интимный контент',
+  erotic: 'Интимный контент',
+  fear: 'Пугающие сцены',
+  scary: 'Пугающие сцены',
+  safe: 'Без риска'
+}
+
 @Injectable()
 export class AnalysisPdfService {
   async generate(details: AnalysisDetails): Promise<PdfExport> {
@@ -329,12 +341,21 @@ export class AnalysisPdfService {
   }
 
   private sceneCategory(scene: JsonRecord) {
-    return (
-      this.stringValue(scene.category_label) ||
-      this.stringValue(scene.категория) ||
+    const categoryId =
       this.stringValue(scene.primary_category) ||
-      'Без категории'
-    )
+      this.stringValue(scene.category_id) ||
+      this.stringValue(scene.категория)
+    const rawLabel = this.stringValue(scene.category_label)
+
+    if (categoryId && CATEGORY_LABELS[categoryId]) {
+      return CATEGORY_LABELS[categoryId]
+    }
+
+    if (rawLabel && !this.looksEnglish(rawLabel)) {
+      return rawLabel
+    }
+
+    return categoryId || 'Без категории'
   }
 
   private recommendationText(scene: JsonRecord) {
@@ -344,7 +365,17 @@ export class AnalysisPdfService {
     const explanation = this.stringValue(llm?.explanation)
     const template = this.stringValue(scene.рекомендации_понижения)
 
-    return summary || explanation || template || ''
+    const cleanSummary = this.stripPolicyNoise(summary)
+    if (cleanSummary && !this.looksEnglish(cleanSummary)) {
+      return cleanSummary
+    }
+
+    const cleanExplanation = this.stripPolicyNoise(explanation)
+    if (cleanExplanation && !this.looksEnglish(cleanExplanation)) {
+      return cleanExplanation
+    }
+
+    return this.stripPolicyNoise(template)
   }
 
   private evidenceText(scene: JsonRecord) {
@@ -355,11 +386,24 @@ export class AnalysisPdfService {
       .filter(Boolean)
       .join('; ')
 
-    return evidence || this.stringValue(scene.policy_basis) || ''
+    return evidence || ''
   }
 
   private needsReview(scene: JsonRecord) {
     return scene.needs_review === true
+  }
+
+  private stripPolicyNoise(value: string) {
+    return value
+      .replace(/\n{0,2}\s*(Основание|ФЗ-436|FZ-436)[\s\S]*$/i, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
+  private looksEnglish(value: string) {
+    const latin = value.match(/[A-Za-z]/g)?.length ?? 0
+    const cyrillic = value.match(/[А-Яа-яЁё]/g)?.length ?? 0
+    return latin > 8 && latin > cyrillic
   }
 
   private maxRating(details: AnalysisDetails, stats: JsonRecord | null) {

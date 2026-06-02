@@ -52,7 +52,8 @@ llm/reports/
 llm/model_candidates/
 llm/trained_model_candidate/
 llm/datasets/raw/
-llm/datasets/silver/
+llm/datasets/silver/*
+!llm/datasets/silver/ambiguous_contexts.jsonl
 llm/datasets/golden/annotation_queue.jsonl
 llm/datasets/golden/*.jsonl
 !llm/datasets/golden/example.jsonl
