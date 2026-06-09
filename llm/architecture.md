@@ -1,38 +1,26 @@
 # 🧠 Архитектура LLM-сервиса
 
-> **LLM-сервис CleanFrame** - FastAPI-приложение, которое парсит сценарии, ищет риск-сигналы, классифицирует их через RuBERT и формирует редакционные рекомендации через Qwen/Ollama.
+> **LLM-сервис CleanFrame** отвечает за интеллектуальную часть анализа сценария: парсинг, поиск риск-сигналов, классификацию RuBERT, расчёт возрастного рейтинга и быстрые локальные редакционные рекомендации.
 
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.121+-009688?logo=fastapi&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.6-EE4C2C?logo=pytorch&logoColor=white)
 ![Transformers](https://img.shields.io/badge/Transformers-4.46+-FFD21E?logo=huggingface&logoColor=black)
-![Ollama](https://img.shields.io/badge/Ollama-Qwen-111111)
 
 ---
 
-## 🌟 Назначение слоя
+## Назначение
 
-LLM-сервис выполняет всю интеллектуальную часть анализа. Backend передаёт файл и целевой рейтинг, а LLM-сервис возвращает структурированный результат: найденные риск-сцены, rating metadata, evidence, рекомендации и статистику.
+Сервис принимает файл сценария от backend, разбирает его на компактные элементы, находит потенциально рискованный контент и возвращает структурированный JSON для отчёта.
 
-Ключевые обязанности:
-
-- загрузка и проверка RuBERT-модели;
-- парсинг `.txt`, `.pdf`, `.docx`;
-- выделение сцен и компактных текстовых элементов;
-- rule-based поиск первичных сигналов;
-- safe-context подавление ложных срабатываний;
-- RuBERT batch inference;
-- rating aggregation;
-- grouped Qwen recommendations;
-- evidence quality и regression tooling;
-- health/ready endpoints.
+Ключевой принцип текущей архитектуры: **никаких внешних генеративных моделей в runtime**. Рекомендации формируются локально на основе правил, категории, уровня риска, evidence и выбранного целевого рейтинга.
 
 ---
 
-## 🏗️ Общая схема
+## Поток Анализа
 
 ```text
-FastAPI /api/analysis/run
+POST /api/analysis/run
       |
       v
 service.py
@@ -45,37 +33,45 @@ pipeline/full_pipeline.py
       +-- taxonomy.py / safe-context
       +-- classification/rubert.py
       +-- rating.py
-      +-- recommendations/service.py ---- llm_client.py ---- Ollama/Qwen
+      +-- recommendations/service.py
       |
       v
 structured JSON result
 ```
 
+1. Backend отправляет файл и, при наличии, целевой рейтинг.
+2. `service.py` валидирует файл и запускает pipeline.
+3. `script_parser.py` читает `.txt`, `.pdf`, `.docx` и выделяет сцены/элементы.
+4. `rule_detector.py` и `taxonomy.py` находят первичные риск-сигналы и применяют safe-context.
+5. `rubert.py` батчами классифицирует кандидаты.
+6. `rating.py` рассчитывает рейтинг и агрегирует итог.
+7. `recommendations/service.py` формирует локальные policy-рекомендации.
+8. Pipeline возвращает сцены, evidence, рейтинг, metadata и статистику.
+
 ---
 
-## 📦 Структура
+## Структура
 
 ```text
 llm/
 ├── llm/
-│   ├── classification/       # RuBERT model loading и inference
+│   ├── classification/       # Загрузка RuBERT и batch inference
 │   ├── core/                 # Runtime status, metrics, model registry, logging
-│   ├── detection/            # Rule detector
-│   ├── legal/                # Policy basis и legal retrieval
-│   ├── legal_knowledge/      # JSONL policy knowledge base
+│   ├── detection/            # Rule detector и первичные сигналы
+│   ├── legal/                # Policy basis и retrieval контекста
+│   ├── legal_knowledge/      # JSONL-база правового/редакторского контекста
 │   ├── lexicons/             # Базовые и расширенные словари
-│   ├── parsing/              # Script parser для txt/pdf/docx
-│   ├── pipeline/             # Full analysis pipeline и guards
-│   ├── recommendations/      # Qwen recommendation service
-│   ├── tools/                # Eval, training, datasets, model download
-│   ├── llm_client.py         # Клиент Ollama/Qwen
+│   ├── parsing/              # Парсер txt/pdf/docx
+│   ├── pipeline/             # Главный анализ и evidence guards
+│   ├── recommendations/      # Локальные редакционные рекомендации
+│   ├── tools/                # Eval, datasets, model download
 │   ├── rating.py             # Rating policy и aggregation
 │   ├── router.py             # FastAPI routes
 │   ├── service.py            # Upload validation и запуск pipeline
 │   └── taxonomy.py           # Категории, labels, safe-context, evidence
 ├── datasets/                 # Golden/silver datasets
 ├── tests/                    # Unit/eval regression tests
-├── main.py                   # FastAPI app bootstrap
+├── main.py                   # FastAPI bootstrap
 ├── requirements.txt
 ├── Dockerfile
 └── .env.example
@@ -83,50 +79,30 @@ llm/
 
 ---
 
-## 🔁 Процесс анализа
+## Основные Компоненты
 
-```text
-1. Backend отправляет файл на /api/analysis/run.
-2. service.py валидирует расширение и сохраняет временный файл.
-3. Проверяется доступность RuBERT через model_status().
-4. full_pipeline запускает parser.
-5. rule_detector ищет первичные подозрительные элементы.
-6. taxonomy применяет safe-context и ambiguous-context правила.
-7. RuBERT классифицирует кандидатов батчами.
-8. rating.py рассчитывает rating и агрегирует итог.
-9. recommendations/service.py выбирает сцены для Qwen.
-10. Qwen генерирует grouped-рекомендации или fallback.
-11. Pipeline возвращает JSON с metadata, scenes, evidence и stats.
-12. Временный файл удаляется.
-```
+### `parsing/`
 
----
+Разбирает входной сценарий:
 
-## 🧩 Основные компоненты
+- читает `.txt`, `.pdf`, `.docx`;
+- нормализует строки;
+- выделяет сцены и элементы сценария;
+- ограничивает слишком длинные фрагменты;
+- готовит текст для rule detection и RuBERT.
 
-### 📄 `parsing/`
-
-Отвечает за разбор сценария:
-
-- чтение `.txt`, `.pdf`, `.docx`;
-- нормализацию строк;
-- определение сцен;
-- ограничение длины фрагментов;
-- подготовку элементов для detection.
-
-### 🧭 `detection/` и `taxonomy.py`
+### `detection/` и `taxonomy.py`
 
 Первичный риск-слой:
 
 - словари категорий;
 - matched terms;
 - category scores;
-- safe-context patterns;
-- ambiguous adjustments;
+- safe-context и ambiguous-context правила;
 - evidence reasons;
-- labels категорий и уровней.
+- labels категорий и уровней риска.
 
-### 🤖 `classification/rubert.py`
+### `classification/rubert.py`
 
 RuBERT inference:
 
@@ -136,40 +112,39 @@ RuBERT inference:
 - batch prediction;
 - confidence metadata.
 
-### 🎚️ `rating.py`
+### `rating.py`
 
-Политика рейтинга:
+Политика возрастного рейтинга:
 
-- mapping rating order;
-- category-specific rating rules;
-- aggregation итогового max rating;
+- порядок рейтингов;
+- category-specific rules;
+- aggregation итогового рейтинга;
 - confidence/evidence guards;
-- снижение unreliable high-risk signals.
+- осторожное снижение unreliable high-risk signals.
 
-### ✍️ `recommendations/`
+### `recommendations/`
 
-Редакционные рекомендации:
+Редакционные рекомендации без генеративной модели:
 
-- режимы `fast`, `full`, `grouped`;
-- grouping сцен по category/level/rating/evidence;
-- Qwen prompts;
-- fallback summary;
-- few-shot examples из `datasets/silver/real_text_pseudo`.
+- быстрые policy-based советы по category/level/rating/target rating;
+- ровно три варианта правки для UI;
+- единый JSON-формат для frontend;
+- отсутствие сетевых таймаутов и внешних runtime-зависимостей.
 
-### 🧪 `tools/evaluation/`
+### `tools/evaluation/`
 
-Качество и regression:
+Инструменты качества:
 
 - `quality_gate.py`;
 - evidence quality;
 - recommendations quality;
 - RuBERT compare;
-- ambiguous context report;
-- Qwen recommendation compare.
+- ambiguous context reports;
+- regression-проверки.
 
 ---
 
-## 📥 Модели и датасеты
+## Модели И Датасеты
 
 RuBERT скачивается автоматически через:
 
@@ -177,19 +152,13 @@ RuBERT скачивается автоматически через:
 llm.tools.model_download
 ```
 
-Источник:
+Источник модели:
 
 ```text
 gospeeel/ruBERT-cleanframe
 ```
 
-Qwen скачивается через Ollama service в Docker Compose:
-
-```text
-qwen3:1.7b
-```
-
-Few-shot dataset для рекомендаций:
+Silver dataset для оценки и экспериментов:
 
 ```text
 llm/datasets/silver/real_text_pseudo/
@@ -197,26 +166,22 @@ llm/datasets/silver/real_text_pseudo/
 
 ---
 
-## ⚙️ Важные конфиги
+## Важные Конфиги
 
 - `RUBERT_MODEL_DIR` - путь к RuBERT.
 - `HF_RUBERT_REPO_ID` - Hugging Face repo модели.
-- `LLM_PRELOAD_MODEL` - прогрев модели при старте.
-- `OLLAMA_BASE_URL` - адрес Ollama.
-- `OLLAMA_MODEL` - Qwen model tag.
-- `LLM_RECOMMENDATION_MODE` - `fast`, `full`, `grouped`.
-- `LLM_RECOMMENDATION_TIME_BUDGET_SECONDS` - бюджет рекомендаций.
+- `HF_RUBERT_REVISION` - revision модели на Hugging Face.
+- `HF_TOKEN` - токен Hugging Face, если модель или лимиты требуют авторизации.
+- `LLM_PRELOAD_MODEL` - прогрев модели при старте сервиса.
 - `SCRIPT_PARSER_MAX_ELEMENT_CHARS` - ограничение длины фрагмента.
 
 ---
 
-## ✅ Проверки
-
-Основные команды LLM:
+## Проверки
 
 ```bash
 python -m unittest discover tests
 python -m llm.tools.evaluation.quality_gate --run-evidence-quality
 ```
 
-CI дополнительно компилирует Python-код и проверяет taxonomy/regression наборы.
+CI дополнительно компилирует Python-код и проверяет regression-наборы.

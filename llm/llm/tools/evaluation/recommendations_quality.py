@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import time
 from pathlib import Path
 from typing import Any
@@ -63,27 +62,19 @@ def evaluate_dataset(
     contexts = [row_to_context(row) for row in rows]
     packages: dict[str, dict[str, Any]] = {}
 
-    previous_batch_size = os.environ.get("LLM_RECOMMENDATION_BATCH_SIZE")
-    os.environ["LLM_RECOMMENDATION_BATCH_SIZE"] = str(max(1, batch_size))
-    try:
-        if use_expected:
-            packages = {
-                row["id"]: {
-                    "fallback_used": False,
-                    "fallback_reason": None,
-                    "llm_recommendation": row.get("expected", {}),
-                    "recommendation": row.get("expected", {}),
-                }
-                for row in rows
+    if use_expected:
+        packages = {
+            row["id"]: {
+                "fallback_used": False,
+                "fallback_reason": None,
+                "llm_recommendation": row.get("expected", {}),
+                "recommendation": row.get("expected", {}),
             }
-        else:
-            for start in range(0, len(contexts), batch_size):
-                packages.update(generate_recommendation_packages_batch(contexts[start:start + batch_size]))
-    finally:
-        if previous_batch_size is None:
-            os.environ.pop("LLM_RECOMMENDATION_BATCH_SIZE", None)
-        else:
-            os.environ["LLM_RECOMMENDATION_BATCH_SIZE"] = previous_batch_size
+            for row in rows
+        }
+    else:
+        for start in range(0, len(contexts), batch_size):
+            packages.update(generate_recommendation_packages_batch(contexts[start:start + batch_size]))
 
     item_reports = []
     for row, context in zip(rows, contexts):
@@ -262,12 +253,12 @@ def any_overlap(needle: str, haystack: str) -> bool:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate Qwen recommendation quality and write a JSON report.")
+    parser = argparse.ArgumentParser(description="Evaluate policy recommendation quality and write a JSON report.")
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=DEFAULT_REPORT_PATH)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=16)
-    parser.add_argument("--use-expected", action="store_true", help="Evaluate expected payloads instead of live Qwen output.")
+    parser.add_argument("--use-expected", action="store_true", help="Evaluate expected payloads instead of generated policy output.")
     args = parser.parse_args()
 
     report = evaluate_dataset(

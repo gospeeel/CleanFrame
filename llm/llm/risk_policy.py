@@ -12,7 +12,23 @@ class RiskPolicy:
 DEFAULT_RISK_POLICY = RiskPolicy()
 
 
-def needs_human_review(prediction: dict, policy: RiskPolicy = DEFAULT_RISK_POLICY) -> bool:
+SUPPRESSION_REASONS = {
+    "safe_context_idiom",
+    "medical_context",
+    "sport_context",
+    "romantic_non_sexual_context",
+    "model_only_high_risk_without_evidence",
+}
+
+
+def needs_human_review(
+    prediction: dict,
+    policy: RiskPolicy = DEFAULT_RISK_POLICY,
+    guard_reasons: list[str] | None = None,
+) -> bool:
+    if guard_reasons and any(reason in SUPPRESSION_REASONS for reason in guard_reasons):
+        return False
+
     if prediction.get("category") == "safe":
         return False
 

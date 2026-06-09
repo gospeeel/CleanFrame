@@ -29,37 +29,6 @@ services:
       timeout: 5s
       retries: 5
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: clean-frame-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 30s
-      timeout: 20s
-      retries: 5
-
-  ollama-pull:
-    image: ollama/ollama:latest
-    container_name: clean-frame-ollama-pull
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: qwen3:1.7b
-    command:
-      - sh
-      - -lc
-      - |
-        ollama pull "$${OLLAMA_MODEL}"
-    volumes:
-      - ollama_data:/root/.ollama
-    depends_on:
-      ollama:
-        condition: service_healthy
-    restart: "no"
-
   rubert-model-pull:
     container_name: clean-frame-rubert-model-pull
     build:
@@ -89,33 +58,8 @@ services:
       RUBERT_MODEL_DIR: /models/trained_model
       RUBERT_BATCH_SIZE: "16"
       LLM_PRELOAD_MODEL: "true"
-      LLM_RECOMMENDATIONS_ENABLED: "true"
-      OLLAMA_BASE_URL: http://ollama:11434
-      OLLAMA_MODEL: qwen3:1.7b
-      OLLAMA_TIMEOUT_SECONDS: "30"
-      OLLAMA_THINK: "false"
-      OLLAMA_JSON_FORMAT_MODE: schema
-      OLLAMA_KEEP_ALIVE: "30m"
-      OLLAMA_NUM_CTX: "2048"
-      OLLAMA_NUM_THREAD: "6"
-      OLLAMA_NUM_BATCH: "128"
-      OLLAMA_NUM_GPU: "999"
-      LLM_RECOMMENDATION_MODE: grouped
-      LLM_RECOMMENDATION_BATCH_SIZE: "6"
-      LLM_RECOMMENDATION_BATCH_NUM_PREDICT: "220"
-      LLM_RECOMMENDATION_BATCH_TIMEOUT_SECONDS: "30"
-      LLM_RECOMMENDATION_TIME_BUDGET_SECONDS: "180"
-      LLM_RECOMMENDATION_MAX_LLM_ITEMS: "0"
-      LLM_RECOMMENDATION_GROUP_MAX_ITEMS: "6"
-      LLM_RECOMMENDATION_GROUP_MAX_GROUPS: "24"
-      LLM_RECOMMENDATION_GROUP_NUM_PREDICT: "520"
-      LLM_RECOMMENDATION_GROUP_SUMMARY_ONLY: "false"
-      LLM_RECOMMENDATION_GROUP_SUMMARY_NUM_PREDICT: "360"
-      LLM_RECOMMENDATION_EXAMPLES_PATH: /datasets/real_text_pseudo/recommendations/train.jsonl
-      LLM_RECOMMENDATION_EXAMPLES_LIMIT: "1"
     volumes:
       - rubert_model:/models/trained_model:ro
-      - ./llm/datasets/silver/real_text_pseudo:/datasets/real_text_pseudo:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -124,8 +68,6 @@ services:
       timeout: 20s
       retries: 3
     depends_on:
-      ollama-pull:
-        condition: service_completed_successfully
       rubert-model-pull:
         condition: service_completed_successfully
 
@@ -156,8 +98,6 @@ services:
     volumes:
       - analysis_uploads:/service/uploads/analysis
     depends_on:
-      ollama-pull:
-        condition: service_completed_successfully
       backend-seed:
         condition: service_completed_successfully
       redis:
@@ -278,8 +218,6 @@ services:
     volumes:
       - analysis_uploads:/service/uploads/analysis
     depends_on:
-      ollama-pull:
-        condition: service_completed_successfully
       backend-seed:
         condition: service_completed_successfully
       redis:
@@ -305,5 +243,4 @@ services:
 volumes:
   postgres_data:
   analysis_uploads:
-  ollama_data:
   rubert_model:

@@ -15,7 +15,6 @@ from llm.core.model_registry import active_model_metadata, resolve_model_dir
 from llm.core.structured_logging import log_event
 from llm.detection.rule_detector import analyze_parsed_script
 from llm.legal.policy import POLICY_VERSION, calculate_simple_rating
-from llm.llm_client import DEFAULT_OLLAMA_MODEL
 from llm.paths import DEFAULT_MODEL_DIR, OUTPUTS_DIR, resolve_project_path
 from llm.parsing.script_parser import parse_script
 from llm.pipeline.guards import apply_evidence_guard
@@ -193,7 +192,6 @@ def _analysis_metadata(
     manifest = get_model_manifest(rubert_model_dir)
     weights = manifest.get("weights", {}) if isinstance(manifest, dict) else {}
     rubert_registry = active_model_metadata("rubert")
-    qwen_registry = active_model_metadata("qwen")
     return {
         "analysis_id": analysis_id,
         "request_id": request_id,
@@ -210,9 +208,9 @@ def _analysis_metadata(
                 "model_dir": str(rubert_model_dir),
                 "created_at": rubert_registry.get("created_at") or manifest.get("generated_at"),
             },
-            "qwen": {
-                "model_name": qwen_registry.get("model_name") or os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL),
-                "created_at": qwen_registry.get("created_at"),
+            "recommendations": {
+                "source": "policy",
+                "mode": recommendation_mode(),
             },
         },
         "policy_version": POLICY_VERSION,
@@ -498,7 +496,7 @@ def run_pipeline(
         )
         target_delta = rating_index - analysis_target_index if analysis_target_index is not None else 0
         should_generate_recommendation = analysis_target_rating is None or exceeds_target
-        review_required = needs_human_review(prediction)
+        review_required = needs_human_review(prediction, guard_reasons=guard_reasons)
         log_event(
             logger,
             "analysis.rating_policy.completed",

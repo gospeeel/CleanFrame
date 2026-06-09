@@ -7,7 +7,7 @@
 - Стабильный интернет для первого запуска
 - Свободное место на диске: желательно от 5 GB
 
-Python, Node.js, PostgreSQL, Redis, Ollama и модели вручную ставить не нужно: основной запуск идёт через Docker Compose.
+Python, Node.js, PostgreSQL, Redis и модели вручную ставить не нужно: основной запуск идёт через Docker Compose.
 
 ## 1. Клонировать проект
 
@@ -48,8 +48,6 @@ docker compose up --build
 
 - собирает backend, frontend и LLM-сервис;
 - поднимает PostgreSQL и Redis;
-- поднимает Ollama;
-- скачивает Qwen `qwen3:1.7b`;
 - скачивает RuBERT-модель из Hugging Face repo `gospeeel/ruBERT-cleanframe`;
 - применяет Prisma migrations;
 - создаёт super admin пользователя.
@@ -61,7 +59,6 @@ docker compose up --build
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:8000
 - LLM service: http://localhost:8001
-- Ollama: http://localhost:11434
 
 ## 5. Доступ администратора
 
@@ -103,18 +100,11 @@ LLM health:
 curl http://localhost:8001/ready
 ```
 
-Ollama models:
-
-```bash
-curl http://localhost:11434/api/tags
-```
-
 На Windows PowerShell можно использовать:
 
 ```powershell
 Invoke-RestMethod http://localhost:8000/api/ready
 Invoke-RestMethod http://localhost:8001/ready
-Invoke-RestMethod http://localhost:11434/api/tags
 ```
 
 ## 7. Как выполнить первый анализ
@@ -149,20 +139,6 @@ gospeeel/ruBERT-cleanframe
 rubert_model
 ```
 
-### Qwen
-
-Сервис `ollama-pull` скачивает:
-
-```text
-qwen3:1.7b
-```
-
-Модель сохраняется в Docker volume:
-
-```text
-ollama_data
-```
-
 ## 9. Повторный запуск
 
 После первого успешного запуска достаточно:
@@ -183,13 +159,13 @@ docker compose down
 docker compose down -v
 ```
 
-После `down -v` следующий запуск снова скачает RuBERT и Qwen.
+После `down -v` следующий запуск снова скачает RuBERT.
 
 ## 10. Частые проблемы
 
 ### Первый запуск очень долгий
 
-Это нормально. Скачиваются Docker images, Qwen и RuBERT.
+Это нормально. Скачиваются Docker images и RuBERT.
 
 ### LLM service не становится healthy
 
@@ -205,22 +181,6 @@ docker compose logs rubert-model-pull
 - не скачалась RuBERT-модель;
 - нет доступа к Hugging Face;
 - не хватает места на диске.
-
-### Qwen-рекомендации шаблонные или fallback
-
-Проверь Ollama:
-
-```bash
-docker compose logs ollama
-docker compose logs ollama-pull
-curl http://localhost:11434/api/tags
-```
-
-Если модель `qwen3:1.7b` отсутствует, перезапусти:
-
-```bash
-docker compose up ollama-pull
-```
 
 ### Backend не стартует после изменения схемы БД
 
@@ -247,7 +207,6 @@ docker compose up --build
 3000 frontend
 8000 backend
 8001 llm
-11434 ollama
 5432 postgres
 6379 redis
 ```

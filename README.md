@@ -1,6 +1,6 @@
 # 🎬 CleanFrame
 
-> **Full-stack платформа для анализа сценариев на возрастной рейтинг, поиска риск-сцен и формирования редакционных рекомендаций с помощью RuBERT и Qwen.**
+> **Full-stack платформа для быстрого анализа сценариев на возрастной рейтинг, поиска риск-сцен и формирования редакционных рекомендаций на основе RuBERT, правил и rating policy.**
 
 ![Nuxt](https://img.shields.io/badge/Nuxt-4-00DC82?logo=nuxt&logoColor=white)
 ![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs&logoColor=white)
@@ -10,7 +10,6 @@
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
-![Qwen](https://img.shields.io/badge/Qwen-Ollama-111111)
 ![RuBERT](https://img.shields.io/badge/RuBERT-HuggingFace-FFD21E?logo=huggingface&logoColor=black)
 
 ---
@@ -23,9 +22,9 @@
 
 - **frontend-отчёт** с навигацией по категориям, риск-сценам и рекомендациям;
 - **backend API** с очередью анализа, историей, retry и PDF-выгрузкой;
-- **LLM-сервис** для парсинга сценариев, классификации рисков и генерации редакционных советов;
+- **LLM-сервис** для парсинга сценариев, классификации рисков и формирования быстрых редакционных советов;
 - **RuBERT-классификатор** для категорий, уровня риска и рейтинговых сигналов;
-- **Qwen через Ollama** для практических рекомендаций по снижению рейтинга;
+- **rule/rating policy слой** для детерминированных рекомендаций без зависимости от генеративной модели;
 - **safe-context правила**, снижающие ложные срабатывания на бытовых, метафорических и нейтральных фразах.
 
 > 🚀 Подробный запуск проекта описан в [`QUICK_START.md`](QUICK_START.md).
@@ -48,12 +47,12 @@
 - Категории риска: насилие, пугающие сцены, вещества, сексуализированный контент, грубая лексика и другие сигналы.
 - Evidence-блоки с короткими основаниями и matched terms.
 
-### 🧠 LLM-рекомендации
+### 🧠 Рекомендации без генеративной задержки
 
-- Qwen формирует редакционные рекомендации для риск-сцен.
-- Grouped-рекомендации уменьшают число LLM-запросов и ускоряют анализ больших сценариев.
+- Рекомендации формируются детерминированно на основе категории, уровня риска, рейтинга и цели.
+- Анализ не ждёт генеративную модель и не зависит от внешнего LLM-runtime.
 - Для каждой сцены сохраняются собственные evidence, rating, target rating и policy basis.
-- При недоступности LLM система возвращает понятный fallback, а не ломает анализ.
+- Такой режим делает время анализа предсказуемым даже на больших сценариях.
 
 ### 📊 Отчёт и UX
 
@@ -91,13 +90,12 @@ LLM Service FastAPI
       +-- Parser: txt / pdf / docx
       +-- Rule detector + safe-context
       +-- RuBERT classifier
-      +-- Qwen recommendations via Ollama
+      +-- deterministic editorial recommendations
 ```
 
 При первом Docker-запуске проект автоматически подтягивает:
 
-- **RuBERT** из Hugging Face: `gospeeel/ruBERT-cleanframe`;
-- **Qwen** через Ollama: `qwen3:1.7b`.
+- **RuBERT** из Hugging Face: `gospeeel/ruBERT-cleanframe`.
 
 ---
 
@@ -133,14 +131,12 @@ LLM Service FastAPI
 - RuBERT
 - Natasha, Razdel, Pymorphy2
 - pdfplumber, python-docx
-- Qwen через Ollama
 - Hugging Face Hub для доставки модели
 
 ### Инфраструктура
 
 - Docker Compose
 - GitHub Actions
-- Ollama
 - Hugging Face model repository
 - PostgreSQL volume
 - Redis queue
@@ -153,7 +149,7 @@ LLM Service FastAPI
 CleanFrame/
 ├── backend/              # NestJS API, Prisma, auth, queue, PDF/report logic
 ├── frontend/             # Nuxt-приложение и UI отчёта
-├── llm/                  # FastAPI LLM service, parser, RuBERT, Qwen recommendations
+├── llm/                  # FastAPI LLM service, parser, RuBERT, rating recommendations
 ├── doc/                  # Тестовые документы и локальные материалы
 ├── .github/              # GitHub Actions и CI scripts
 ├── docker-compose.yaml   # Production-like orchestration
@@ -182,7 +178,7 @@ CleanFrame/
 
 ## 📌 Текущий статус
 
-Проект находится в стадии **production-hardening**: уже есть полноценный full-stack pipeline, фоновые задачи, LLM-рекомендации, отчёт, PDF-экспорт, базовые quality gates и переносимый Docker-запуск.
+Проект находится в стадии **production-hardening**: уже есть полноценный full-stack pipeline, фоновые задачи, быстрые редакционные рекомендации, отчёт, PDF-экспорт, базовые quality gates и переносимый Docker-запуск.
 
 Ближайшие направления развития:
 

@@ -19,10 +19,10 @@ def main() -> None:
     subparsers.add_parser("show")
 
     active_parser = subparsers.add_parser("active")
-    active_parser.add_argument("role", choices=["rubert", "qwen"])
+    active_parser.add_argument("role", choices=["rubert"])
 
     register_parser = subparsers.add_parser("register")
-    register_parser.add_argument("role", choices=["rubert", "qwen"])
+    register_parser.add_argument("role", choices=["rubert"])
     register_parser.add_argument("--model-name", required=True)
     register_parser.add_argument("--model-dir", type=Path)
     register_parser.add_argument("--model-version")
@@ -30,7 +30,7 @@ def main() -> None:
     register_parser.add_argument("--base-model")
 
     rollback_parser = subparsers.add_parser("rollback")
-    rollback_parser.add_argument("role", choices=["rubert", "qwen"])
+    rollback_parser.add_argument("role", choices=["rubert"])
 
     args = parser.parse_args()
     if args.command == "show":

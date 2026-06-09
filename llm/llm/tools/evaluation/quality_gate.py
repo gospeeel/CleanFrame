@@ -14,6 +14,8 @@ from llm.paths import DEFAULT_MODEL_DIR
 from llm.tools.evaluation.ambiguous_contexts import DEFAULT_DATASET as DEFAULT_AMBIGUOUS_CONTEXTS_DATASET
 from llm.tools.evaluation.ambiguous_contexts import evaluate_ambiguous_contexts
 from llm.tools.evaluation.evidence_quality import evaluate_evidence_quality
+from llm.tools.evaluation.false_positive_regression import DEFAULT_DATASET as DEFAULT_FALSE_POSITIVE_DATASET
+from llm.tools.evaluation.false_positive_regression import evaluate_false_positive_regression
 from llm.tools.evaluation.recommendations_quality import evaluate_dataset as evaluate_recommendations
 from llm.tools.evaluation.rubert_compare import run_compare as compare_rubert_models
 
@@ -50,6 +52,32 @@ def main() -> None:
                 "threshold": args.min_ambiguous_contexts_pass_rate,
                 "failed": ambiguous_summary["failed"],
                 "total": ambiguous_summary["total"],
+            },
+        ))
+
+    if not args.skip_false_positive_regression:
+        fp_report = evaluate_false_positive_regression(
+            dataset_path=args.false_positive_dataset,
+            output_path=report_dir / "false_positive_regression.json",
+        )
+        fp_summary = fp_report["summary"]
+        checks.append(check(
+            "false_positive_regression_pass_rate",
+            fp_summary["pass_rate"] >= args.min_false_positive_pass_rate,
+            {
+                "pass_rate": fp_summary["pass_rate"],
+                "threshold": args.min_false_positive_pass_rate,
+                "failed": fp_summary["failed"],
+                "total": fp_summary["total"],
+            },
+        ))
+        checks.append(check(
+            "false_positive_high_risk_zero",
+            fp_summary["high_risk_false_positive_count"] <= args.max_high_risk_false_positives,
+            {
+                "high_risk_false_positive_count": fp_summary["high_risk_false_positive_count"],
+                "threshold": args.max_high_risk_false_positives,
+                "false_positive_by_category": fp_summary["false_positive_by_category"],
             },
         ))
 
@@ -277,6 +305,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-ambiguous-contexts", action="store_true")
     parser.add_argument("--ambiguous-contexts-dataset", type=Path, default=DEFAULT_AMBIGUOUS_CONTEXTS_DATASET)
     parser.add_argument("--min-ambiguous-contexts-pass-rate", type=float, default=1.0)
+    parser.add_argument("--skip-false-positive-regression", action="store_true")
+    parser.add_argument("--false-positive-dataset", type=Path, default=DEFAULT_FALSE_POSITIVE_DATASET)
+    parser.add_argument("--min-false-positive-pass-rate", type=float, default=0.9)
+    parser.add_argument("--max-high-risk-false-positives", type=int, default=0)
 
     parser.add_argument("--run-pipeline-golden", action="store_true")
     parser.add_argument("--min-pipeline-rating-accuracy", type=float, default=0.8)

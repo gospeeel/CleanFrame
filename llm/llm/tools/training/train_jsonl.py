@@ -126,6 +126,9 @@ def sha256(path: Path) -> str:
 
 def train(args):
     train_rows = read_jsonl(args.train)
+    extra_train_rows = read_jsonl(args.extra_train) if args.extra_train else []
+    if extra_train_rows:
+        train_rows.extend(extra_train_rows * max(1, args.extra_train_oversample))
     validation_rows = read_jsonl(args.validation)
 
     categories = sorted({row["category"] for row in train_rows + validation_rows})
@@ -236,6 +239,9 @@ def train(args):
         },
         "training": {
             "train": str(args.train),
+            "extra_train": str(args.extra_train) if args.extra_train else None,
+            "extra_train_rows": len(extra_train_rows),
+            "extra_train_oversample": args.extra_train_oversample if extra_train_rows else 0,
             "validation": str(args.validation),
             "epochs": args.epochs,
             "batch_size": args.batch_size,
@@ -256,6 +262,8 @@ def train(args):
 def parse_args():
     parser = argparse.ArgumentParser(description="Train ML_WINK multitask age-rating model from JSONL datasets.")
     parser.add_argument("--train", type=Path, required=True)
+    parser.add_argument("--extra-train", type=Path)
+    parser.add_argument("--extra-train-oversample", type=int, default=4)
     parser.add_argument("--validation", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, default=Path("trained_model_candidate"))
     parser.add_argument("--base-model", default="DeepPavlov/rubert-base-cased")

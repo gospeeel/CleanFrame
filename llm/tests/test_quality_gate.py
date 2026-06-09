@@ -20,6 +20,7 @@ class QualityGateTest(unittest.TestCase):
                 patch("sys.argv", argv),
                 patch("llm.tools.evaluation.quality_gate.evaluate_golden") as golden,
                 patch("llm.tools.evaluation.quality_gate.evaluate_ambiguous_contexts") as ambiguous,
+                patch("llm.tools.evaluation.quality_gate.evaluate_false_positive_regression") as false_positive,
                 redirect_stdout(stdout),
             ):
                 golden.return_value = {
@@ -39,12 +40,26 @@ class QualityGateTest(unittest.TestCase):
                     },
                     "failures": [],
                 }
+                false_positive.return_value = {
+                    "summary": {
+                        "total": 16,
+                        "passed": 16,
+                        "failed": 0,
+                        "pass_rate": 1.0,
+                        "high_risk_false_positive_count": 0,
+                        "false_positive_by_category": {},
+                    },
+                    "failures": [],
+                }
                 quality_gate.main()
 
             summary = json.loads((report_dir / "quality_gate_summary.json").read_text(encoding="utf-8"))
 
         self.assertTrue(summary["passed"])
-        self.assertIn("ambiguous_contexts_pass_rate", {item["name"] for item in summary["checks"]})
+        check_names = {item["name"] for item in summary["checks"]}
+        self.assertIn("ambiguous_contexts_pass_rate", check_names)
+        self.assertIn("false_positive_regression_pass_rate", check_names)
+        self.assertIn("false_positive_high_risk_zero", check_names)
 
 
 if __name__ == "__main__":

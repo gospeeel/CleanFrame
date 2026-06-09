@@ -758,7 +758,32 @@ def safe_context_matches_category(lowered_text: str, category: str) -> bool:
     return (
         any(pattern in lowered_text for pattern in SAFE_CONTEXT_PATTERNS.get(category, []))
         or any(re.search(pattern, lowered_text) for pattern in SAFE_CONTEXT_REGEXES.get(category, []))
+        or dynamic_safe_context_matches_category(lowered_text, category)
     )
+
+
+def dynamic_safe_context_matches_category(lowered_text: str, category: str) -> bool:
+    normalized = normalize_category(category)
+    if normalized == "violence":
+        sport_markers = ("тренировк", "матч", "мяч", "шайб", "стадион", "фигурист", "спорт")
+        sport_actions = ("падает на лёд", "падает на лед", "упал на лёд", "упал на лед", "ударил по мячу", "удар по мячу")
+        if any(marker in lowered_text for marker in sport_markers) and any(action in lowered_text for action in sport_actions):
+            return True
+
+    if normalized == "sexual":
+        romantic_markers = ("держатся за руки", "на свидании", "романтическ", "тепло обнимаются")
+        explicit_markers = ("секс", "постель", "обнаж", "эрот", "интимн")
+        if any(marker in lowered_text for marker in romantic_markers) and not any(marker in lowered_text for marker in explicit_markers):
+            return True
+
+    if normalized == "substance":
+        neutral_markers = ("вывеск", "витрин", "музейн", "проходят мимо", "нарисована кружка пива", "старая пачка сигарет")
+        if any(marker in lowered_text for marker in neutral_markers):
+            return True
+        if re.search(r"\bгероин(?:я|и|ю|ей|е)\b", lowered_text):
+            return True
+
+    return False
 
 
 def ambiguous_context_adjustments(text: str) -> dict[str, dict | set]:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import tempfile
 from pathlib import Path
 
@@ -91,25 +90,16 @@ def evaluate(path: Path = DEFAULT_DATASET, mode: str = "rules") -> dict:
 def _evaluate_pipeline_row(row: dict) -> dict:
     from llm.pipeline.full_pipeline import process_script
 
-    previous_llm_enabled = os.environ.get("LLM_RECOMMENDATIONS_ENABLED")
-    os.environ["LLM_RECOMMENDATIONS_ENABLED"] = "false"
-
-    try:
-        with tempfile.TemporaryDirectory(prefix="ml-wink-golden-") as tmpdir:
-            tmp_path = Path(tmpdir) / f"{row['id']}.txt"
-            tmp_path.write_text(row["text"], encoding="utf-8")
-            result = process_script(
-                input_path=str(tmp_path),
-                output_all=str(Path(tmpdir) / "all.json"),
-                output_max=str(Path(tmpdir) / "max.json"),
-                analysis_id=f"golden-{row['id']}",
-                request_id=f"golden-{row['id']}",
-            )
-    finally:
-        if previous_llm_enabled is None:
-            os.environ.pop("LLM_RECOMMENDATIONS_ENABLED", None)
-        else:
-            os.environ["LLM_RECOMMENDATIONS_ENABLED"] = previous_llm_enabled
+    with tempfile.TemporaryDirectory(prefix="ml-wink-golden-") as tmpdir:
+        tmp_path = Path(tmpdir) / f"{row['id']}.txt"
+        tmp_path.write_text(row["text"], encoding="utf-8")
+        result = process_script(
+            input_path=str(tmp_path),
+            output_all=str(Path(tmpdir) / "all.json"),
+            output_max=str(Path(tmpdir) / "max.json"),
+            analysis_id=f"golden-{row['id']}",
+            request_id=f"golden-{row['id']}",
+        )
 
     scenes = result.get("все_подозрительные_сцены") or result.get("обработанные_сцены") or []
     metadata = result.get("metadata", {}) if isinstance(result, dict) else {}

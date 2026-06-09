@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from llm.recommendations.service import build_recommendation_context, generate_recommendation_packages_batch
 from llm.tools.evaluation.recommendations_quality import evaluate_dataset, evaluate_suggestion
 
 
@@ -53,6 +54,48 @@ def recommendation_row() -> dict:
 
 
 class RecommendationsQualityTest(unittest.TestCase):
+    def test_policy_recommendations_are_category_specific_and_varied(self):
+        violence = build_recommendation_context(
+            item_id="violence-1",
+            text="Герой бьёт противника, тот падает у двери.",
+            category="violence",
+            category_label="Насилие",
+            secondary_categories=[],
+            level=2,
+            level_label="умеренный риск",
+            rating="12+",
+            target_rating="6+",
+            evidence=[{"text": "Герой бьёт противника", "matched_term": "бьёт"}],
+            confidence={"category": 0.9, "level": 0.8, "rating": 0.8},
+            needs_review=False,
+        )
+        substance = build_recommendation_context(
+            item_id="substance-1",
+            text="Персонажу предлагают наркотик и объясняют, где его спрятать.",
+            category="substance",
+            category_label="Алкоголь, табак и вещества",
+            secondary_categories=[],
+            level=3,
+            level_label="выраженный риск",
+            rating="16+",
+            target_rating="12+",
+            evidence=[{"text": "предлагают наркотик", "matched_term": "наркотик"}],
+            confidence={"category": 0.9, "level": 0.8, "rating": 0.8},
+            needs_review=True,
+        )
+
+        packages = generate_recommendation_packages_batch([violence, substance])
+        violence_payload = packages["violence-1"]["llm_recommendation"]
+        substance_payload = packages["substance-1"]["llm_recommendation"]
+        violence_after = {item["after"] for item in violence_payload["rewrite_suggestions"]}
+        substance_after = {item["after"] for item in substance_payload["rewrite_suggestions"]}
+
+        self.assertIn("Насилие", violence_payload["explanation"])
+        self.assertIn("Алкоголь, табак и вещества", substance_payload["explanation"])
+        self.assertEqual(len(violence_after), 3)
+        self.assertEqual(len(substance_after), 3)
+        self.assertTrue(violence_after.isdisjoint(substance_after))
+
     def test_expected_payload_passes_quality_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
             dataset = Path(tmp) / "recommendations.jsonl"
@@ -67,11 +110,11 @@ class RecommendationsQualityTest(unittest.TestCase):
         self.assertTrue(report["items"][0]["checks"]["before_after_quality_ok"])
         self.assertTrue(output_exists)
 
-    def test_live_payload_reports_fallback_failure(self):
+    def test_generated_payload_reports_fallback_failure(self):
         row = recommendation_row()
         package = {
             "fallback_used": True,
-            "fallback_reason": "ollama unavailable",
+            "fallback_reason": "policy generation unavailable",
             "llm_recommendation": row["expected"],
             "recommendation": row["expected"],
         }

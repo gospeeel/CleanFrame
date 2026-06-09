@@ -28,11 +28,12 @@ class ModelRegistryAuditTest(unittest.TestCase):
     def test_register_and_rollback_update_registry(self):
         with tempfile.TemporaryDirectory() as tmp:
             registry_path = Path(tmp) / "registry.json"
-            registry = register_model("qwen", {"model_name": "qwen-new"}, path=registry_path)
-            rolled_back = rollback_model("qwen", path=registry_path)
+            register_model("rubert", {"model_name": "rubert-old"}, path=registry_path)
+            registry = register_model("rubert", {"model_name": "rubert-new"}, path=registry_path)
+            rolled_back = rollback_model("rubert", path=registry_path)
 
-        self.assertEqual(registry["active"]["qwen"]["model_name"], "qwen-new")
-        self.assertNotEqual(rolled_back["active"]["qwen"]["model_name"], "qwen-new")
+        self.assertEqual(registry["active"]["rubert"]["model_name"], "rubert-new")
+        self.assertNotEqual(rolled_back["active"]["rubert"]["model_name"], "rubert-new")
 
 
 if __name__ == "__main__":

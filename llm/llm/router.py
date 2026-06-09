@@ -1,7 +1,6 @@
 from fastapi import APIRouter, File, Form, Header, UploadFile
 
 from llm.core.metrics import metrics_snapshot
-from llm.llm_client import ollama_status
 from llm.core.model_runtime import model_status
 from llm.schemas import Allm
 from llm.service import run_analysis
@@ -29,7 +28,7 @@ async def analysis_health():
     return {
         "status": "ok",
         "rubert": model_status(warm=False),
-        "ollama": ollama_status(),
+        "recommendations": {"status": "ok", "source": "policy"},
     }
 
 
