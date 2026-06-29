@@ -1,4 +1,6 @@
-FROM python:3.12-slim
+ARG PYTHON_BASE_IMAGE=mirror.gcr.io/library/python:3.12-slim
+
+FROM ${PYTHON_BASE_IMAGE}
 
 WORKDIR /service
 

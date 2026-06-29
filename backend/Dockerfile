@@ -1,4 +1,6 @@
-FROM node:22-alpine AS deps
+ARG NODE_BASE_IMAGE=mirror.gcr.io/library/node:22-alpine
+
+FROM ${NODE_BASE_IMAGE} AS deps
 
 WORKDIR /service
 
@@ -8,7 +10,7 @@ COPY package.json pnpm-lock.yaml* ./
 
 RUN pnpm install --frozen-lockfile=false
 
-FROM node:22-alpine AS build
+FROM ${NODE_BASE_IMAGE} AS build
 
 WORKDIR /service
 
@@ -21,7 +23,7 @@ ENV DATABASE_URL=postgresql://ml_wink:ml_wink_password@postgres:5432/ml_wink?sch
 RUN pnpm prisma:generate
 RUN pnpm build
 
-FROM node:22-alpine AS runner
+FROM ${NODE_BASE_IMAGE} AS runner
 
 WORKDIR /service
 
